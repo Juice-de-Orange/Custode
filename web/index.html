@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- Brand-name-free by design (BRAND_NAME lives only in the app); describes the product. -->
+    <meta
+      name="description"
+      content="Die ruhige Haushaltsplattform: Rezepte, Einkauf, Aufgaben, Kalender, Notizen und mehr — durchdacht und an einem Ort."
+    />
+    <meta name="theme-color" content="#fafaf7" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#141513" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <!-- PWA (ADR-0078): the manifest link is injected at build time by vite-plugin-pwa. iOS needs
+         an opaque touch icon (transparency renders black) + the standalone metas. Deliberately no
+         apple-mobile-web-app-title: iOS ≥16.4 reads short_name from the manifest (brand rule). -->
+    <link rel="apple-touch-icon" href="/apple-touch-icon-180x180.png" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <!-- Technical name only; the displayed brand is set at runtime from BRAND_NAME. -->
+    <title>Custode</title>
+    <script>
+      // Pre-paint theme (no flash): follow the stored preference, or the OS when unset/"system".
+      // lib/theme.ts manages the preference; all surfaces are dark-ready (Slice 4d).
+      try {
+        var p = localStorage.getItem("custode-theme");
+        if (
+          p === "dark" ||
+          ((p === "system" || !p) && matchMedia("(prefers-color-scheme: dark)").matches)
+        )
+          document.documentElement.classList.add("dark");
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

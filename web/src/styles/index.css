@@ -1,0 +1,199 @@
+@import "tailwindcss";
+
+/* Self-hosted brand fonts — weight axis only, subsets gated by unicode-range, font-display: swap.
+   Loading these is the single biggest warmth lever: without them every "font-display"/"font-mono"
+   surface fell through to the OS system font, which is the main reason the UI read as sterile. */
+@import "@fontsource-variable/bricolage-grotesque/wght.css";
+@import "@fontsource-variable/inter/wght.css";
+@import "@fontsource/ibm-plex-mono/latin-400.css";
+@import "@fontsource/ibm-plex-mono/latin-500.css";
+
+/* Class-based dark mode: the `.dark` class on <html> is set pre-paint by the inline head script
+   (and, from the shell slice on, by lib/theme.ts). System-follow becomes the default once every
+   surface is dark-ready; until then dark stays opt-in so no merged state looks broken. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Touch-Geräte (UX_KONZEPT §7: Touch-Ziele ≥ 44 px): Tailwind 4.1 bringt pointer-coarse: mit,
+   wir sind auf 4.0 — gleiche Semantik als eigene Variante. Desktop-Dichte bleibt unberührt. */
+@custom-variant coarse (@media (pointer: coarse));
+
+/* Design-Tokens „Kino-Ruhe" (ENTWICKLUNGSKONZEPT A.2, ADR-0075) — Evolution der „Ruhigen Moderne":
+   warme Kino-Farbwelt (Lorbeer/Bernstein/Rost), dezente Tiefe + Film-Korn, Silhouetten-Szenen.
+   Kontrast-Regeln (Audit C-01): --bernstein nur große Ziffern/Flächen, --bernstein-text für
+   Fließtext; Dark-Mode nutzt aufgehellte Akzente. Token-Namen bleiben stabil (Code referenziert
+   bg-laurus, border-stein/… etc.) — neue Werte sind additiv. */
+@theme {
+  /* — Flächen & Text — */
+  --color-kalk: #fafaf7; /* helle Grundfläche (fast weiß, minimal warm) */
+  --color-papier: #ffffff; /* gehobene helle Kartenfläche */
+  --color-nebel: #eeede7; /* sehr helle Füll-/Trennfläche (Chips, Tracks) */
+  --color-tinte: #1b1c1a; /* Text/Primär */
+  --color-stein: #8b8d86; /* Hairlines/Ränder/Füllungen (Nicht-Text: 3:1 genügt, C-01) */
+  --color-stein-text: var(--stein-text); /* Sekundär-FLIESSTEXT (AA 4.5:1) — theme-geschaltet wie --bernstein-text */
+  --color-nacht: #141513; /* Dark-Grundfläche (System-Folge) */
+  --color-nacht-2: #1f211d; /* gehobene Dark-Kartenfläche */
+
+  /* — Akzente (warme Kino-Gradierung) — */
+  --color-laurus: #2f5d3a; /* DER Akzent: Aktionen, Fokus, Marke */
+  --color-laurus-dark: #6fa37e; /* aufgehellt für Dark-Mode/Hover */
+  --color-bernstein: #c98a2b; /* Zweitakzent: Punkte-/Belohnungsmomente */
+  --color-bernstein-text: #8f5e12; /* dunkleres Bernstein für Fließtext (AA) */
+  --color-rost: #a14b3c; /* gedecktes Backstein-Rot: „überfällig/rot" */
+
+  /* — Personenfarben (gedeckt, AA auf hell & dunkel) — die einzige „Buntheit". — */
+  --color-person-1: #6e7f9b;
+  --color-person-2: #8a6d8b;
+  --color-person-3: #5f8a78;
+  --color-person-4: #a8754c;
+  --color-person-5: #7b8b5a;
+  --color-person-6: #9b6a6a;
+  --color-person-7: #5e7e8e;
+  --color-person-8: #8c7a4a;
+
+  /* — Tiefe (kinematische Elevation, sparsam — Trennung weiter primär über Abstand/Hairlines) — */
+  --shadow-soft: 0 1px 2px rgb(20 21 19 / 0.05), 0 2px 8px rgb(20 21 19 / 0.06);
+  --shadow-elev: 0 6px 16px rgb(20 21 19 / 0.1), 0 18px 42px rgb(20 21 19 / 0.14);
+
+  /* — Radius — */
+  --radius-card: 0.875rem;
+  --radius-pill: 9999px;
+
+  /* — Typografie (jetzt tatsächlich geladen) — */
+  --font-display: "Bricolage Grotesque Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* — Motion — */
+  --ease-cine: cubic-bezier(0.2, 0.7, 0.2, 1);
+
+  /* — Mobile-Geometrie (PWA/Standalone, ADR-0078) — EINE Quelle für Safe-Area-Insets und die
+     Bottom-Bar-Höhe; abgeleitete Anker referenzieren sie, damit eine Höhenänderung nicht vier
+     Dateien verstimmt. Im Browser sind alle env()-Werte 0 → identisches Layout wie zuvor. */
+  --spacing-safe-t: env(safe-area-inset-top);
+  --spacing-safe-b: env(safe-area-inset-bottom);
+  --spacing-safe-l: env(safe-area-inset-left);
+  --spacing-safe-r: env(safe-area-inset-right);
+  --spacing-bottom-bar: calc(4rem + env(safe-area-inset-bottom)); /* mobile Bottom-Bar inkl. Home-Indicator */
+  --spacing-above-bar: calc(var(--spacing-bottom-bar) + 1rem); /* Anker für FAB/Toast über der Bar */
+  --spacing-content-bottom: calc(var(--spacing-bottom-bar) + 2rem); /* Content-Freiraum über der Bar */
+}
+
+:root {
+  color-scheme: light;
+  /* Sekundär-Fließtext-Farbe, theme-geschaltet (referenziert von --color-stein-text). Hell dunkler
+     als --stein, damit `text-stein-text` auf kalk/papier AA (≥ 4.5:1) erreicht — die Hairline-Farbe
+     --stein (#8b8d86) verfehlt das für Text (nur ~3.3:1). Analog zu --bernstein-text (Audit C-01). */
+  --stein-text: #6b6d64;
+  /* Silhouetten-Szenen (ADR-0075): warme „goldene Stunde" hell, Nacht dunkel. Als CSS-Variablen,
+     damit die Szenen-SVGs sie via fill/stop-color nutzen und im Dark-Mode automatisch umschalten. */
+  --scene-sky-1: #f3ddb8;
+  --scene-sky-2: #e6c79c;
+  --scene-hill-far: #93a087;
+  --scene-hill-mid: #52745a;
+  --scene-hill-near: #2f5d3a;
+  --scene-sun: #d99a3c;
+}
+html.dark {
+  color-scheme: dark;
+  /* Dark: die Hairline-Farbe --stein (#8b8d86) trägt auf nacht/nacht-2 bereits AA (≈ 4.8–5.5:1),
+     also bleibt Sekundärtext im Dark-Mode unverändert (keine Regression). */
+  --stein-text: #8b8d86;
+  --scene-sky-1: #1b2027;
+  --scene-sky-2: #10151b;
+  --scene-hill-far: #2b3830;
+  --scene-hill-mid: #1a2a1f;
+  --scene-hill-near: #0f1e15;
+  --scene-sun: #dfe3d6;
+}
+
+body {
+  margin: 0;
+  background-color: var(--color-kalk);
+  color: var(--color-tinte);
+  font-family: var(--font-sans);
+  font-feature-settings: "tnum" 1; /* tabellarische Ziffern — Ziffern als Persönlichkeit */
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+html.dark body {
+  background-color: var(--color-nacht);
+  color: var(--color-kalk);
+}
+
+/* Sichtbarer, markenkonformer Tastatur-Fokusring — nie unterdrückt (WCAG 2.4.7). */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-laurus);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+html.dark :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline-color: var(--color-laurus-dark);
+}
+
+/* Film-Korn: dezente statische Textur für Hero-/Szenen-Flächen. pointer-events:none, liegt hinter
+   dem Inhalt. Eltern-Element braucht position:relative (Utility .grain setzt das). */
+.grain {
+  position: relative;
+}
+.grain::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.05;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+html.dark .grain::after {
+  mix-blend-mode: screen;
+  opacity: 0.07;
+}
+
+/* Scrim: Verlaufs-Overlay, das Text über Szenen-Hintergründen AA-lesbar hält (Farbe nie alleiniger
+   Träger). Auf das Szenen-Element legen, Inhalt darüber positionieren. */
+.scrim-b {
+  background-image: linear-gradient(to top, var(--color-kalk) 8%, color-mix(in srgb, var(--color-kalk) 55%, transparent) 45%, transparent 80%);
+}
+html.dark .scrim-b {
+  background-image: linear-gradient(to top, var(--color-nacht) 8%, color-mix(in srgb, var(--color-nacht) 55%, transparent) 45%, transparent 80%);
+}
+
+/* Der eine orchestrierte Moment der Designsprache: das Abhaken (häufigste Handlung). */
+@keyframes check-pop {
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  55% {
+    transform: scale(1.12);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+.animate-check {
+  animation: check-pop 200ms var(--ease-cine);
+}
+
+/* Installierte App (PWA, ADR-0078): kein versehentlicher Pull-to-Refresh-Reload mitten in einer
+   Eingabe — nur im Standalone-Fenster; der Browser-Tab behält sein natives Verhalten. */
+@media (display-mode: standalone) {
+  body {
+    overscroll-behavior-y: none;
+  }
+}
+
+/* „Genau ein orchestrierter Moment, sonst dezent" — und reduzierte Bewegung wird respektiert. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
