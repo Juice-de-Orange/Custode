@@ -1,0 +1,246 @@
+# Custode — gehärtetes Compose für einen Produktionsserver (ADR-0020).
+#
+# Unterschiede zu docker-compose.dev.yml (das NIE auf einen Public-Host darf):
+#   * KEINE veröffentlichten DB-/Cache-Ports — Postgres & Redis sind nur im
+#     internen Compose-Netz erreichbar. Nur die API lauscht auf 127.0.0.1,
+#     ein Reverse-Proxy/Tunnel des Betreibers sitzt davor.
+#   * Echte Secrets ausschliesslich aus .env (siehe .env.prod.example),
+#     niemals im Repo. DB-Rollen-Passwoerter werden beim ersten Init gesetzt.
+#   * RAM-Limits, damit Custode die uebrigen Dienste auf dem Produktionsserver nie verdraengt.
+#   * restart: unless-stopped fuer Neustart-Resilienz nach Reboot/Crash.
+#   * Kein MinIO/Mailpit — die App bootet ohne (S3/SMTP sind optional, Phase 1).
+
+name: custode
+
+services:
+  postgres:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: custode
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: custode
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?set APP_DB_PASSWORD in .env}
+      MAINT_DB_PASSWORD: ${MAINT_DB_PASSWORD:?set MAINT_DB_PASSWORD in .env}
+      # Betreiber-Konsole (ADR-0015/0071) — vom init-Skript beim ersten Init angelegt. Bewusst
+      # OHNE :? — ein bestehender Stack (nicht-leeres Volume) laeuft den init nie und darf vom
+      # naechsten Deploy nicht blockiert werden. Beim FRISCHEN Init bricht das Skript selbst ab,
+      # damit nie Rollen mit leerem Passwort entstehen.
+      OPS_DB_PASSWORD: ${OPS_DB_PASSWORD:-}
+      OPS_ACTIONS_DB_PASSWORD: ${OPS_ACTIONS_DB_PASSWORD:-}
+    volumes:
+      - ./infra/postgres/init.prod.sh:/docker-entrypoint-initdb.d/10-init.sh:ro
+      # postgres:18 legt Daten in einem versionsspezifischen Unterordner ab —
+      # Volume auf /var/lib/postgresql (NICHT /data), sonst Start-Verweigerung.
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U custode -d custode"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # Persistenz fuer die taskiq-Queue (RDB-Snapshots); noeviction, damit unter
+    # Speicherdruck keine eingereihten Jobs verworfen werden.
+    command: ["redis-server", "--save", "60", "1", "--appendonly", "no", "--maxmemory", "96mb", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+  api:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*"]
+    environment:
+      CUSTODE_ENV: production
+      CUSTODE_DEBUG: "false"
+      CUSTODE_LOG_JSON: "true"
+      CUSTODE_DATABASE_URL: postgresql+asyncpg://custode_app:${APP_DB_PASSWORD}@postgres:5432/custode
+      CUSTODE_DATABASE_URL_ADMIN: postgresql+asyncpg://custode:${POSTGRES_PASSWORD}@postgres:5432/custode
+      # Maint-Rolle fuer haushaltsuebergreifende Pfade (Login/Refresh/Passkey-Lookup,
+      # Outbox-Dispatcher). OHNE diese URL faellt maint_session auf custode_app zurueck
+      # -> RLS ohne Scope -> 0 Zeilen -> Login schlaegt mit invalid_credentials fehl (BUGLOG).
+      CUSTODE_DATABASE_URL_MAINT: postgresql+asyncpg://custode_maint:${MAINT_DB_PASSWORD}@postgres:5432/custode
+      # Betreiber-Konsole (ADR-0015/0071): ops_readonly liest NUR Aggregat-Views, ops_actions
+      # schreibt das audit_log + ops-eigene Tabellen. OHNE diese URLs faellt die Konsole auf
+      # custode_app zurueck (engine.py) -> die Betreiber-Grenze gaebe es nur app-seitig.
+      # Die Form ${VAR:+...} liefert leer, solange kein Passwort in der .env steht — dann greift
+      # der dokumentierte Fallback statt einer kaputten Verbindungs-URL.
+      CUSTODE_DATABASE_URL_OPS: ${OPS_DB_PASSWORD:+postgresql+asyncpg://ops_readonly:${OPS_DB_PASSWORD}@postgres:5432/custode}
+      CUSTODE_DATABASE_URL_OPS_ACTIONS: ${OPS_ACTIONS_DB_PASSWORD:+postgresql+asyncpg://ops_actions:${OPS_ACTIONS_DB_PASSWORD}@postgres:5432/custode}
+      CUSTODE_REDIS_URL: redis://redis:6379/0
+      # Server-seitige Credential-Verschluesselung (ADR-0077) — CalDAV-Passwoerter, spaeter
+      # Wearable-OAuth-Tokens. Leer => die abhaengigen Features bleiben aus (503
+      # crypto_unconfigured), nie ein Crash. Wert NUR aus .env, nie im Repo.
+      CUSTODE_CRYPTO_KEY: ${CUSTODE_CRYPTO_KEY:-}
+      # CalDAV (ADR-0079/0080). Kill-Switch je externem Adapter (KONZEPT §11); private
+      # Ziel-Adressen bleiben auf Prod geblockt (SSRF), Ausnahme nur fuer Self-Hosted im LAN.
+      CUSTODE_CALDAV_SYNC_ENABLED: ${CUSTODE_CALDAV_SYNC_ENABLED:-true}
+      CUSTODE_CALDAV_ALLOW_PRIVATE_URLS: ${CUSTODE_CALDAV_ALLOW_PRIVATE_URLS:-false}
+      # Wearables (ADR-0081): der Ingest-Cron laeuft im worker. Leer => Null-Adapter,
+      # der nichts holt und darum nichts speichert; die Retention laeuft trotzdem.
+      CUSTODE_OURA_ENABLED: ${CUSTODE_OURA_ENABLED:-true}
+      CUSTODE_OURA_CLIENT_ID: ${CUSTODE_OURA_CLIENT_ID:-}
+      CUSTODE_OURA_CLIENT_SECRET: ${CUSTODE_OURA_CLIENT_SECRET:-}
+      CUSTODE_WEARABLE_RAW_RETENTION_DAYS: ${CUSTODE_WEARABLE_RAW_RETENTION_DAYS:-90}
+      # Build-Info fuer die /ops-Konsole (§12) — ohne diese Werte zeigt sie unknown / 0.0.0.
+      CUSTODE_GIT_SHA: ${CUSTODE_GIT_SHA:-unknown}
+      CUSTODE_APP_VERSION: ${CUSTODE_APP_VERSION:-0.0.0}
+      # Tracing-Export (OpenTelemetry -> Sentry). Leer => kein Export.
+      CUSTODE_OTLP_ENDPOINT: ${CUSTODE_OTLP_ENDPOINT:-}
+      # E-Mail (ADR-0027). Leer => Null-Adapter (kein Versand). Werte aus .env (nie im Repo).
+      CUSTODE_SMTP_HOST: ${CUSTODE_SMTP_HOST:-}
+      CUSTODE_SMTP_PORT: ${CUSTODE_SMTP_PORT:-465}
+      CUSTODE_SMTP_USER: ${CUSTODE_SMTP_USER:-}
+      CUSTODE_SMTP_PASSWORD: ${CUSTODE_SMTP_PASSWORD:-}
+      CUSTODE_SMTP_FROM: ${CUSTODE_SMTP_FROM:-noreply@localhost}
+      CUSTODE_SMTP_STARTTLS: ${CUSTODE_SMTP_STARTTLS:-false}
+      CUSTODE_PUBLIC_BASE_URL: ${CUSTODE_PUBLIC_BASE_URL:-}
+      # Rezept-Fotos: persistentes Volume (Filesystem-Blob-Storage, ADR-0033). Leer => Upload aus.
+      CUSTODE_STORAGE_DIR: /data/storage
+    volumes:
+      - storagedata:/data/storage
+    # NUR localhost — oeffentliche Erreichbarkeit laeuft ueber einen Reverse-Proxy/Tunnel
+    # des Betreibers, der `web` im Compose-Netz erreicht (ADR-0020).
+    ports:
+      - "127.0.0.1:8080:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  worker:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    command: ["taskiq", "worker", "app.worker:broker"]
+    # Der Worker hat keinen HTTP-Port — der aus dem Image geerbte /healthz-Check
+    # passt nicht. Stattdessen Redis-Erreichbarkeit pruefen (kritische Abhaengigkeit).
+    healthcheck:
+      test: ["CMD", "python", "-c", "import redis,os; redis.from_url(os.environ['CUSTODE_REDIS_URL']).ping()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    environment:
+      CUSTODE_ENV: production
+      CUSTODE_DEBUG: "false"
+      CUSTODE_LOG_JSON: "true"
+      CUSTODE_DATABASE_URL: postgresql+asyncpg://custode_app:${APP_DB_PASSWORD}@postgres:5432/custode
+      CUSTODE_DATABASE_URL_MAINT: postgresql+asyncpg://custode_maint:${MAINT_DB_PASSWORD}@postgres:5432/custode
+      CUSTODE_REDIS_URL: redis://redis:6379/0
+      # Der Worker faehrt den CalDAV-Cron (worker.py) — er braucht denselben Schluessel wie die
+      # api, sonst pausiert jeder Sync-Lauf still mit last_sync_error=crypto_unconfigured.
+      CUSTODE_CRYPTO_KEY: ${CUSTODE_CRYPTO_KEY:-}
+      CUSTODE_CALDAV_SYNC_ENABLED: ${CUSTODE_CALDAV_SYNC_ENABLED:-true}
+      CUSTODE_CALDAV_ALLOW_PRIVATE_URLS: ${CUSTODE_CALDAV_ALLOW_PRIVATE_URLS:-false}
+      # E-Mail: der Wochen-Digest-Cron laeuft HIER, nicht in der api (ADR-0027/0070). Ohne
+      # diese Werte faellt smtp_host auf den Default "localhost" zurueck und der Versand
+      # laeuft im Worker-Container ins Leere.
+      CUSTODE_SMTP_HOST: ${CUSTODE_SMTP_HOST:-}
+      CUSTODE_SMTP_PORT: ${CUSTODE_SMTP_PORT:-465}
+      CUSTODE_SMTP_USER: ${CUSTODE_SMTP_USER:-}
+      CUSTODE_SMTP_PASSWORD: ${CUSTODE_SMTP_PASSWORD:-}
+      CUSTODE_SMTP_FROM: ${CUSTODE_SMTP_FROM:-noreply@localhost}
+      CUSTODE_SMTP_STARTTLS: ${CUSTODE_SMTP_STARTTLS:-false}
+      CUSTODE_PUBLIC_BASE_URL: ${CUSTODE_PUBLIC_BASE_URL:-}
+      # Wearables (ADR-0081): der Ingest-Cron laeuft im worker. Leer => Null-Adapter,
+      # der nichts holt und darum nichts speichert; die Retention laeuft trotzdem.
+      CUSTODE_OURA_ENABLED: ${CUSTODE_OURA_ENABLED:-true}
+      CUSTODE_OURA_CLIENT_ID: ${CUSTODE_OURA_CLIENT_ID:-}
+      CUSTODE_OURA_CLIENT_SECRET: ${CUSTODE_OURA_CLIENT_SECRET:-}
+      CUSTODE_WEARABLE_RAW_RETENTION_DAYS: ${CUSTODE_WEARABLE_RAW_RETENTION_DAYS:-90}
+      # Feedback -> GitHub Issues (ADR-0076). Der Tracker wird im WORKER komponiert
+      # (Outbox-Handler), nicht in der api. Leer => Null-Adapter.
+      CUSTODE_GITHUB_TOKEN: ${CUSTODE_GITHUB_TOKEN:-}
+      CUSTODE_GITHUB_REPO: ${CUSTODE_GITHUB_REPO:-}
+      CUSTODE_OTLP_ENDPOINT: ${CUSTODE_OTLP_ENDPOINT:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  scheduler:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    command: ["taskiq", "scheduler", "app.worker:scheduler"]
+    # Wie der worker: kein HTTP-Port -> geerbten /healthz-Check durch Redis-Ping ersetzen.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import redis,os; redis.from_url(os.environ['CUSTODE_REDIS_URL']).ping()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    environment:
+      CUSTODE_ENV: production
+      CUSTODE_DEBUG: "false"
+      CUSTODE_LOG_JSON: "true"
+      CUSTODE_DATABASE_URL: postgresql+asyncpg://custode_app:${APP_DB_PASSWORD}@postgres:5432/custode
+      CUSTODE_DATABASE_URL_MAINT: postgresql+asyncpg://custode_maint:${MAINT_DB_PASSWORD}@postgres:5432/custode
+      CUSTODE_REDIS_URL: redis://redis:6379/0
+      # Der scheduler feuert die Cron-Jobs nur ab (ausgefuehrt werden sie im worker) — er
+      # braucht dieselben Settings, weil app.worker beim Import komponiert wird.
+      CUSTODE_CRYPTO_KEY: ${CUSTODE_CRYPTO_KEY:-}
+      CUSTODE_CALDAV_SYNC_ENABLED: ${CUSTODE_CALDAV_SYNC_ENABLED:-true}
+      CUSTODE_CALDAV_ALLOW_PRIVATE_URLS: ${CUSTODE_CALDAV_ALLOW_PRIVATE_URLS:-false}
+      CUSTODE_SMTP_HOST: ${CUSTODE_SMTP_HOST:-}
+      CUSTODE_GITHUB_TOKEN: ${CUSTODE_GITHUB_TOKEN:-}
+      CUSTODE_GITHUB_REPO: ${CUSTODE_GITHUB_REPO:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  web:
+    build:
+      context: ./web
+    restart: unless-stopped
+    # Caddy serves the built SPA and proxies /v1, /healthz, /readyz, /metrics to the api
+    # — one origin (cookies are SameSite=Lax). The image bakes `dist`; we override its
+    # default Caddyfile with the reverse-proxy config. No host port: the operator's
+    # reverse proxy/tunnel reaches `web` on :80 in the Compose network (ADR-0020/0024);
+    # TLS is terminated there.
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+    depends_on:
+      - api
+    deploy:
+      resources:
+        limits:
+          memory: 96M
+
+volumes:
+  pgdata:
+  redisdata:
+  storagedata:

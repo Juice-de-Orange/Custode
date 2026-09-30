@@ -1,0 +1,41 @@
+# Minor and patch updates are grouped per ecosystem; majors arrive one by one. Security updates are
+# not affected by these limits.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: uv
+    directory: /backend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: docker
+    directories: [/backend, /web, /]
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 2
+    ignore:
+      # Postgres 18 and Python 3.12 are architecture decisions, not weekly updates.
+      - dependency-name: postgres
+        update-types: ["version-update:semver-major"]
+      - dependency-name: python
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ['*']

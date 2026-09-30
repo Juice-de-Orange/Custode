@@ -1,0 +1,59 @@
+# --- Custode .gitignore ---
+
+# Secrets / Environment
+.env
+.env.*
+!.env*.example
+
+# Start-Paket: Inhalt liegt kanonisch in KONFIG/, Zip wird nicht versioniert
+custode_start.zip
+
+# Python / Backend
+__pycache__/
+*.py[cod]
+.venv/
+backend/.venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+dist/
+build/
+# backend/openapi.json wird BEWUSST committed (Vertrags-Baseline für oasdiff +
+# Client-Regen-Diff; in CI neu exportiert und gegen diese Datei geprüft).
+
+# Node / Web
+node_modules/
+web/node_modules/
+web/dist/
+web/.vite/
+*.tsbuildinfo
+
+# Hinweis: web/src/api/** (generierter OpenAPI-Client) wird BEWUSST committed
+# (Vertrag: oasdiff + Client-Regen-Diff muss leer sein).
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# Logs / Temp / lokale Daten
+*.log
+tmp/
+.cache/
+infra/**/data/
+
+# Claude Code — lokale, maschinenspezifische Permissions (nie teilen)
+.claude/settings.local.json
+.claude/worktrees/
+
+# --- release-audit artefacts and local AI-tool state: never in the repo ---
+.opensource/
+.claude/settings.local.json
+.mcp.json

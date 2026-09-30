@@ -1,0 +1,33 @@
+# Custode gitleaks config — extend the default ruleset, allowlist two classes that provably
+# hold no secrets. Real secrets live only in .env on the server / in GitHub Secrets.
+#
+# NB: the SINGULAR [allowlist] table. gitleaks 8.24.3 does not honour a global [[allowlists]]
+# array here — a plural block parses but never applies, which fails open and silently.
+title = "Custode"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Test fixtures + the prod secret template (the latter guarded by test_compose_env)"
+paths = [
+    # These test files carry dummy passwords/tokens by necessity; they are never real. Listed
+    # individually rather than as ``backend/tests/.*`` so a new test cannot slip a real value in.
+    '''backend/tests/test_calendar_subscriptions_http\.py''',
+    '''backend/tests/test_auth_http\.py''',
+    '''backend/tests/test_login_db\.py''',
+    # The prod template documents WHICH variables exist. ``generic-api-key`` matches across line
+    # boundaries: an empty ``CUSTODE_OURA_CLIENT_SECRET=`` made it grab the NEXT assignment's
+    # value as the "secret". The template is ordered so that empty credential lines end their
+    # block (see the note there), but git history still contains the old ordering, so the path
+    # allowlist stays.
+    #
+    # The check is not dropped, it is MOVED and sharpened:
+    # backend/tests/test_compose_env.py::test_prod_secret_template_carries_no_real_values
+    # asserts every credential-ish variable there is empty or the documented `change-me`.
+    # That test knows which NAMES are credentials; the generic rule did not.
+    #
+    # ``.env.example`` (dev) is deliberately NOT listed — it carries the same known local
+    # credentials as docker-compose.dev.yml, and gitleaks accepts those today.
+    '''\.env\.prod\.example''',
+]

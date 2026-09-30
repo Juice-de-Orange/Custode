@@ -1,0 +1,142 @@
+name: custode-dev
+
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: custode
+      POSTGRES_PASSWORD: custode
+      POSTGRES_DB: custode
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/10-init.sql:ro
+      # postgres:18: Volume auf /var/lib/postgresql (versionsspez. Unterordner).
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U custode -d custode"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: custode
+      MINIO_ROOT_PASSWORD: custode123
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - miniodata:/data
+
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+  # Lokaler CalDAV-Server zum manuellen Testen des Pull-Syncs (P9-S3, ADR-0079). Der Dev-Login
+  # steht in infra/radicale/users (nur Dev!). Kollektion einmalig anlegen:
+  #   curl -u "$DEV_LOGIN" -X MKCALENDAR http://localhost:5232/custode/personal/
+  # Abo-URL in Custode (aus Containersicht): http://radicale:5232/custode/personal/
+  radicale:
+    image: tomsquest/docker-radicale:3.7.6.0
+    ports:
+      - "5232:5232"
+    environment:
+      TAKE_FILE_OWNERSHIP: "true"
+    volumes:
+      - ./infra/radicale:/config:ro
+      - radicaledata:/data
+
+  api:
+    build:
+      context: ./backend
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    environment:
+      CUSTODE_DATABASE_URL: postgresql+asyncpg://custode_app:custode@postgres:5432/custode
+      CUSTODE_DATABASE_URL_ADMIN: postgresql+asyncpg://custode:custode@postgres:5432/custode
+      CUSTODE_DATABASE_URL_MAINT: postgresql+asyncpg://custode_maint:custode_maint@postgres:5432/custode
+      CUSTODE_REDIS_URL: redis://redis:6379/0
+      CUSTODE_S3_ENDPOINT_URL: http://minio:9000
+      CUSTODE_S3_ACCESS_KEY: custode
+      CUSTODE_S3_SECRET_KEY: custode123
+      CUSTODE_SMTP_HOST: mailpit
+      CUSTODE_SMTP_PORT: "1025"
+      # Dev: der SSRF-Guard wuerde das interne Compose-Netz (radicale:5232) blocken.
+      CUSTODE_CALDAV_ALLOW_PRIVATE_URLS: "true"
+      # Fester Dev-Fernet-Key (ADR-0077), damit Abos MIT Zugangsdaten lokal gegen den radicale
+      # testbar sind. Klartext wie die uebrigen Dev-Credentials in dieser Datei — NIE auf Prod
+      # (dort kommt der Wert aus <stack-dir>/.env, siehe .env.prod.example).
+      CUSTODE_CRYPTO_KEY: "Y3VzdG9kZS1kZXYtb25seS1rZXktbm90LXNlY3JldCE="  # gitleaks:allow — Dev-Konstante, kein Secret
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: ./backend
+    command: taskiq worker app.worker:broker
+    # Worker hat keinen HTTP-Port — geerbten /healthz-Check durch Redis-Ping ersetzen.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import redis,os; redis.from_url(os.environ['CUSTODE_REDIS_URL']).ping()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    environment:
+      CUSTODE_DATABASE_URL: postgresql+asyncpg://custode_app:custode@postgres:5432/custode
+      CUSTODE_DATABASE_URL_MAINT: postgresql+asyncpg://custode_maint:custode_maint@postgres:5432/custode
+      CUSTODE_REDIS_URL: redis://redis:6379/0
+      CUSTODE_CALDAV_ALLOW_PRIVATE_URLS: "true"
+      # Der worker faehrt den CalDAV-Cron — ohne denselben Key pausiert jeder Sync-Lauf.
+      CUSTODE_CRYPTO_KEY: "Y3VzdG9kZS1kZXYtb25seS1rZXktbm90LXNlY3JldCE="  # gitleaks:allow — Dev-Konstante, kein Secret
+      CUSTODE_SMTP_HOST: mailpit
+      CUSTODE_SMTP_PORT: "1025"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  scheduler:
+    build:
+      context: ./backend
+    command: taskiq scheduler app.worker:scheduler
+    # Kein HTTP-Port — geerbten /healthz-Check durch Redis-Ping ersetzen (wie worker).
+    healthcheck:
+      test: ["CMD", "python", "-c", "import redis,os; redis.from_url(os.environ['CUSTODE_REDIS_URL']).ping()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    environment:
+      CUSTODE_DATABASE_URL: postgresql+asyncpg://custode_app:custode@postgres:5432/custode
+      CUSTODE_DATABASE_URL_MAINT: postgresql+asyncpg://custode_maint:custode_maint@postgres:5432/custode
+      CUSTODE_REDIS_URL: redis://redis:6379/0
+      CUSTODE_CALDAV_ALLOW_PRIVATE_URLS: "true"
+      CUSTODE_CRYPTO_KEY: "Y3VzdG9kZS1kZXYtb25seS1rZXktbm90LXNlY3JldCE="  # gitleaks:allow — Dev-Konstante, kein Secret
+      CUSTODE_SMTP_HOST: mailpit
+      CUSTODE_SMTP_PORT: "1025"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  miniodata:
+  radicaledata:

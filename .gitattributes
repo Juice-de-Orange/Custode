@@ -1,0 +1,29 @@
+# Einheitliche Zeilenenden (Windows-Entwicklung, LF im Repo)
+* text=auto eol=lf
+
+*.md    text eol=lf
+*.py    text eol=lf
+*.ts    text eol=lf
+*.tsx   text eol=lf
+*.js    text eol=lf
+*.json  text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.sql   text eol=lf
+*.sh    text eol=lf
+*.toml  text eol=lf
+*.cfg   text eol=lf
+*.ini   text eol=lf
+Makefile text eol=lf
+Dockerfile text eol=lf
+
+# Binärdateien
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.woff  binary
+*.woff2 binary
+*.zip   binary
+*.pdf   binary

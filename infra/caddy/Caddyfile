@@ -1,0 +1,82 @@
+# Production reverse proxy: static web + API under one origin (ARCHITECTURE: "web
+# Static via Caddy"). TLS is terminated upstream by the operator's TLS-terminating proxy
+# or tunnel (→ http://web:80 in the Compose network), so Caddy serves plain HTTP on :80.
+# Dev does NOT use this — the web runs via `npm run dev` and proxies /v1 to the API.
+
+# PWA cache policy (ADR-0078), shared by both site blocks: hashed /assets/* never change →
+# immutable. EVERYTHING else (sw.js, manifest.webmanifest, entry HTML + SPA-fallback responses)
+# must revalidate — a long-cached sw.js would freeze installed apps on an old version.
+(spa_cache) {
+    @immutable path /assets/*
+    header @immutable Cache-Control "public, max-age=31536000, immutable"
+    @revalidate not path /assets/*
+    header @revalidate Cache-Control "no-cache"
+}
+
+:80 {
+    encode zstd gzip
+
+    @api path /v1/* /healthz /readyz /metrics
+    handle @api {
+        reverse_proxy api:8000
+    }
+
+    handle {
+        root * /usr/share/caddy
+
+        # Security headers for the SPA (KONZEPT §0 "CSP-Härtung", ADR-0067). These guard the
+        # client-side-encrypted Vault: a strict script-src/connect-src keeps an injected script
+        # from exfiltrating decrypted secrets. The enforced headers below are safe for an SPA.
+        header {
+            X-Content-Type-Options "nosniff"
+            X-Frame-Options "DENY"
+            Referrer-Policy "no-referrer"
+            Permissions-Policy "geolocation=(), camera=(), microphone=(), payment=(), usb=()"
+            -Server
+            # CSP ships in Report-Only first: it must NOT break libsodium-wasm (the wasm loader
+            # may need 'wasm-unsafe-eval' or 'unsafe-eval' depending on the build) or same-origin
+            # SSE/API. Report-Only enforces nothing — it only surfaces violations — so we can
+            # observe in production, then flip to an enforcing `Content-Security-Policy` in a
+            # follow-up slice once the real directives are confirmed. connect-src 'self' covers
+            # the same-origin /v1 API + EventSource; 'wasm-unsafe-eval' allows WebAssembly.
+            Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
+        }
+
+        import spa_cache
+
+        try_files {path} /index.html
+        file_server
+    }
+}
+
+# Operator console on its own subdomain (ARCHITECTURE §8.6, ADR-0072/0074): a separate bundle
+# (index-ops.html) with bearer auth — NO member cookies are in scope here, so a stolen ops
+# token cannot ride an ambient session and vice-versa. The host is matched explicitly; the
+# subdomain's DNS/tunnel route is an infra step (documented, not in-repo). The operator's
+# proxy or tunnel must point ops.<domain> at this block.
+ops.localhost, ops.example.com {
+    encode zstd gzip
+
+    @ops path /ops/* /healthz /readyz
+    handle @ops {
+        reverse_proxy api:8000
+    }
+
+    handle {
+        root * /usr/share/caddy
+        header {
+            X-Content-Type-Options "nosniff"
+            X-Frame-Options "DENY"
+            Referrer-Policy "no-referrer"
+            Permissions-Policy "geolocation=(), camera=(), microphone=(), payment=(), usb=()"
+            -Server
+            Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
+        }
+        # Same cache split as the member block. (No manifest/SW here — the ops console is
+        # deliberately not installable, ADR-0078.)
+        import spa_cache
+        # The ops SPA's client-side routes all fall back to its own entry document.
+        try_files {path} /index-ops.html
+        file_server
+    }
+}

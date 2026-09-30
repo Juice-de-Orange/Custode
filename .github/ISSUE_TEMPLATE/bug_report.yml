@@ -1,0 +1,46 @@
+name: Bug report
+description: Something does not work as specified in KONFIG/ or documented.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! Security problems go through private reporting instead
+        (Security → Report a vulnerability). Please remove tokens, e-mail addresses, hostnames and
+        household data from anything you paste.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Module
+      options:
+        - accounts / households / auth
+        - recipes / nutrition / mealplanner / shopping
+        - calendar / CalDAV / ICS
+        - tasks / points ledger / marketplace
+        - vault / messaging / guides / notes / comments
+        - wearables / weather / capture
+        - web PWA / offline sync
+        - operator console
+        - infra / compose / CI
+        - docs
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, what happened instead? Include the problem `type`/`reference` from the API response if you have one.
+    validations:
+      required: true
+  - type: textarea
+    id: setup
+    attributes:
+      label: Setup
+      description: Commit, browser/device, dev stack or production compose, Postgres version.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs (redacted)
+      render: shell

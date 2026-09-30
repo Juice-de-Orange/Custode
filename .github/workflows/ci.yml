@@ -1,0 +1,152 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Ein neuer Push auf denselben Branch macht den laufenden Lauf wertlos.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    # Ohne Limit gilt GitHubs Default von 360 Minuten. Ein hängender Testcontainer
+    # verbrennt sechs Stunden Runner-Zeit, bevor irgendetwas rot wird. Der Lauf dauert
+    # real ~7,5 min; die Grenzen sind grob 2–3x davon, nicht knapp.
+    timeout-minutes: 20
+    env:
+      TESTCONTAINERS_RYUK_DISABLED: "true"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+        with:
+          version: "0.11.21"
+          enable-cache: true
+      - name: Sync deps
+        working-directory: backend
+        run: uv sync --frozen
+      - name: Ruff (lint + format)
+        working-directory: backend
+        run: uv run ruff check . && uv run ruff format --check .
+      - name: Mypy (strict)
+        working-directory: backend
+        run: uv run mypy
+      - name: Import boundaries
+        working-directory: backend
+        run: uv run lint-imports
+      - name: Pytest (incl. RLS negative test via Testcontainers Postgres 18)
+        working-directory: backend
+        run: uv run pytest
+
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install
+        working-directory: web
+        run: npm ci
+      - name: Lint + typecheck
+        working-directory: web
+        run: npm run lint && npm run typecheck
+      - name: Test
+        working-directory: web
+        run: npm run test
+      - name: Build
+        working-directory: web
+        run: npm run build
+      - name: Bundle-Size-Gate (Initial-Payload-Budget + libsodium bleibt lazy)
+        working-directory: web
+        run: npm run size
+      - name: PWA-Gate (Manifest + SW, Brand-Regel, Ops nicht installierbar)
+        working-directory: web
+        run: npm run check:pwa
+      - name: Lighthouse-Gate (Kernroute /, Mobile-Budgets, ubuntu-latest bringt Chrome mit)
+        working-directory: web
+        run: npm run lhci
+
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+        with:
+          version: "0.11.21"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - name: Export OpenAPI schema
+        working-directory: backend
+        run: uv sync --frozen && uv run python -m app.scripts.export_openapi
+      - name: Regenerate web client
+        working-directory: web
+        run: npm ci && npm run openapi
+      - name: No OpenAPI/client drift
+        run: git diff --exit-code -- backend/openapi.json web/src/api
+
+      # CLAUDE.md und ENTWICKLUNGSKONZEPT fuehren „oasdiff ohne Breaking" seit jeher als
+      # blockierendes Gate — gebaut war bis 2026-08-01 nur der Drift-Check darueber. Ein
+      # entfernter Endpunkt oder ein neu verpflichtendes Feld waere unbemerkt durchgegangen.
+      # Nur auf PRs: auf main gibt es keinen sinnvollen Vergleichspunkt mehr.
+      - name: oasdiff — keine Breaking Changes gegen den Zielbranch
+        if: github.event_name == 'pull_request'
+        env:
+          OASDIFF_VERSION: 1.27.0
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          curl -sSfL -o /tmp/oasdiff.tar.gz \
+            "https://github.com/oasdiff/oasdiff/releases/download/v${OASDIFF_VERSION}/oasdiff_${OASDIFF_VERSION}_linux_amd64.tar.gz"
+          tar -xzf /tmp/oasdiff.tar.gz -C /tmp oasdiff
+          # checkout holt bei PRs nur den Merge-Commit; die Basis muss nach.
+          git fetch --no-tags --depth=1 origin "$BASE_SHA" || true
+          if ! git show "$BASE_SHA:backend/openapi.json" > /tmp/openapi-base.json 2>/dev/null; then
+            echo "Kein Basis-Schema erreichbar — nichts zu vergleichen."
+            exit 0
+          fi
+          /tmp/oasdiff breaking /tmp/openapi-base.json backend/openapi.json --fail-on ERR
+
+  security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read  # gitleaks-action listet die PR-Commits über die API
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
+        env:
+          # gitleaks-action v2 braucht den Token, um PR-Commits zu scannen
+          # (Breaking Change; sonst „GITHUB_TOKEN is now required to scan pull requests").
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
+      - name: trivy filesystem (HIGH/CRITICAL)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          ignore-unfixed: true
