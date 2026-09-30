@@ -1,0 +1,691 @@
+[project]
+name = "custode-backend"
+version = "0.0.0"
+description = "Custode backend — FastAPI modular monolith"
+requires-python = ">=3.12"
+license = "AGPL-3.0-only"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.34",
+    "sqlalchemy[asyncio]>=2.0.36",
+    "alembic>=1.14",
+    "asyncpg>=0.30",
+    "pydantic>=2.10",
+    "pydantic-settings>=2.7",
+    "structlog>=24.4",
+    "redis>=5.2",
+    "taskiq>=0.11.7",
+    "taskiq-redis>=1.0",
+    "httpx>=0.28",
+    "uuid-utils>=0.10",
+    "opentelemetry-sdk>=1.29",
+    "opentelemetry-exporter-otlp-proto-http>=1.29",
+    "opentelemetry-instrumentation-fastapi>=0.50b0",
+    "argon2-cffi>=23.1",
+    "cryptography>=44.0",
+    "webauthn>=2.8.0",
+    "aiosmtplib>=3.0",
+    "recipe-scrapers>=15.11.0",
+    "defusedxml>=0.7",
+    "pillow>=12.3.0",
+    "python-multipart>=0.0.32",
+    "python-dateutil>=2.9",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.8",
+    "mypy>=1.13",
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "import-linter>=2.1",
+    "hypothesis>=6.119",
+    "pip-audit>=2.7",
+    "testcontainers[postgres]>=4.8",
+    "soft-webauthn>=0.1.3",
+    "types-python-dateutil>=2.9",
+    "pyyaml>=6.0",                                  # tests/test_compose_env.py parst die Compose-Dateien
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+# ---------------------------------------------------------------------------
+# Linting / typing / tests
+# ---------------------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["app", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "ASYNC", "S", "C4", "SIM", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106", "E402"]   # asserts, test creds, importorskip
+"app/scripts/**" = ["S101"]
+"migrations/**" = ["E402"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+ignore_missing_imports = true
+plugins = ["pydantic.mypy"]
+files = ["app"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+# ``-ra`` ist kein Geschmack: mit dem blossen ``-q`` druckte ein Lauf ohne Docker
+# ``563 skipped, 374 passed`` und keinen einzigen Grund. Wer nicht sieht, WARUM etwas
+# uebersprungen wurde, sieht auch nicht, DASS die Abdeckung fehlt (Gate in tests/conftest.py).
+addopts = "-q -ra --strict-markers"
+
+# ---------------------------------------------------------------------------
+# Module boundaries (CLAUDE.md / ARCHITECTURE §4) — CI gate `lint-imports`
+# In Phase 0 modules/ is empty; the per-module independence contract is added
+# in Phase 1 when modules exist. The forbidden contracts below already hold.
+# ---------------------------------------------------------------------------
+[tool.importlinter]
+root_packages = ["app"]
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "kernel must not depend on modules or adapters"
+type = "forbidden"
+source_modules = ["app.kernel"]
+forbidden_modules = ["app.modules", "app.adapters"]
+
+[[tool.importlinter.contracts]]
+name = "adapters must not depend on modules"
+type = "forbidden"
+source_modules = ["app.adapters"]
+forbidden_modules = ["app.modules"]
+
+[[tool.importlinter.contracts]]
+name = "modules must not depend on adapters (use ports via DI)"
+type = "forbidden"
+source_modules = ["app.modules"]
+forbidden_modules = ["app.adapters"]
+
+# Cross-module only via the public api.py (CLAUDE.md): recipes may call nutrition.api, never its
+# internals; nutrition never depends on recipes (the dependency is one-way recipes -> nutrition).
+[[tool.importlinter.contracts]]
+name = "recipes uses only nutrition's public api"
+type = "forbidden"
+source_modules = ["app.modules.recipes"]
+# Only DIRECT imports are forbidden — recipes -> nutrition.api (which itself pulls nutrition.service)
+# is the intended path; a direct recipes -> nutrition.service would be flagged.
+allow_indirect_imports = true
+forbidden_modules = [
+    "app.modules.nutrition.service",
+    "app.modules.nutrition.models",
+    "app.modules.nutrition.router",
+    "app.modules.nutrition.schemas",
+]
+
+[[tool.importlinter.contracts]]
+name = "nutrition must not depend on recipes"
+type = "forbidden"
+source_modules = ["app.modules.nutrition"]
+forbidden_modules = ["app.modules.recipes"]
+
+# tasks (P4-S1) imports only kernel/* and economy's PUBLIC api (economy.api) to credit the points
+# ledger on completion (ADR-0035) — never economy internals nor any other module.
+[[tool.importlinter.contracts]]
+name = "tasks uses only economy's public api"
+type = "forbidden"
+source_modules = ["app.modules.tasks"]
+# economy.api -> economy.service is the intended path; a direct tasks -> economy.service is flagged.
+allow_indirect_imports = true
+forbidden_modules = [
+    "app.modules.accounts",
+    "app.modules.recipes",
+    "app.modules.nutrition",
+    "app.modules.shopping",
+    "app.modules.marketplace",
+    "app.modules.economy.service",
+    "app.modules.economy.models",
+    "app.modules.economy.router",
+    "app.modules.economy.schemas",
+]
+
+# economy (P4-S2) owns the points ledger; it imports only kernel/* and never another feature module
+# (the dependency is strictly one-way: tasks/marketplace/… -> economy.api).
+[[tool.importlinter.contracts]]
+name = "economy must not depend on other modules"
+type = "forbidden"
+source_modules = ["app.modules.economy"]
+forbidden_modules = [
+    "app.modules.accounts",
+    "app.modules.recipes",
+    "app.modules.nutrition",
+    "app.modules.shopping",
+    "app.modules.tasks",
+    "app.modules.marketplace",
+]
+
+# marketplace (P4-S8) uses only the PUBLIC api of tasks + economy (escrow + reassign); never their
+# internals, never another module. No module imports marketplace (one-way -> no cycle).
+[[tool.importlinter.contracts]]
+name = "marketplace uses only tasks/economy public api"
+type = "forbidden"
+source_modules = ["app.modules.marketplace"]
+allow_indirect_imports = true
+forbidden_modules = [
+    "app.modules.accounts",
+    "app.modules.recipes",
+    "app.modules.nutrition",
+    "app.modules.shopping",
+    "app.modules.tasks.service",
+    "app.modules.tasks.models",
+    "app.modules.tasks.router",
+    "app.modules.tasks.schemas",
+    "app.modules.economy.service",
+    "app.modules.economy.models",
+    "app.modules.economy.router",
+    "app.modules.economy.schemas",
+]
+
+# capture (P4-S9) uses only the PUBLIC api of shopping (Posten über den Sync-Batch) + tasks (Task
+# anlegen); never their internals, never another module. No module imports capture (one-way -> no cycle).
+[[tool.importlinter.contracts]]
+name = "capture uses only shopping/tasks public api"
+type = "forbidden"
+source_modules = ["app.modules.capture"]
+allow_indirect_imports = true
+forbidden_modules = [
+    "app.modules.accounts",
+    "app.modules.recipes",
+    "app.modules.nutrition",
+    "app.modules.economy",
+    "app.modules.marketplace",
+    "app.modules.shopping.service",
+    "app.modules.shopping.models",
+    "app.modules.shopping.router",
+    "app.modules.shopping.schemas",
+    "app.modules.shopping.spec",
+    "app.modules.tasks.service",
+    "app.modules.tasks.models",
+    "app.modules.tasks.router",
+    "app.modules.tasks.schemas",
+]
+
+# No feature module may import capture (the dependency is strictly one-way: capture -> shopping/tasks).
+[[tool.importlinter.contracts]]
+name = "capture must not be imported by other modules"
+type = "forbidden"
+source_modules = [
+    "app.modules.accounts",
+    "app.modules.recipes",
+    "app.modules.nutrition",
+    "app.modules.shopping",
+    "app.modules.tasks",
+    "app.modules.economy",
+    "app.modules.marketplace",
+]
+forbidden_modules = ["app.modules.capture"]
+
+# calendar (P5-S1) is standalone: it imports only kernel/*, never another feature module. The
+# Phase-5 scheduling engine will depend one-way on calendar.api (added later).
+[[tool.importlinter.contracts]]
+name = "calendar must not depend on other modules"
+type = "forbidden"
+source_modules = ["app.modules.calendar"]
+forbidden_modules = [
+    "app.modules.accounts",
+    "app.modules.recipes",
+    "app.modules.nutrition",
+    "app.modules.shopping",
+    "app.modules.tasks",
+    "app.modules.economy",
+    "app.modules.marketplace",
+    "app.modules.capture",
+]
+
+# weather (P5-S7) owns the coarse household location + Open-Meteo adapter; it imports only kernel/*
+# and never another feature module. The later Scheduling-Engine will read weather.api one-way.
+[[tool.importlinter.contracts]]
+name = "weather must not depend on other modules"
+type = "forbidden"
+source_modules = ["app.modules.weather"]
+forbidden_modules = [
+    "app.modules.accounts",
+    "app.modules.recipes",
+    "app.modules.nutrition",
+    "app.modules.shopping",
+    "app.modules.tasks",
+    "app.modules.economy",
+    "app.modules.marketplace",
+    "app.modules.capture",
+    "app.modules.calendar",
+]
+
+# mealplanner (P6) owns the weekly plan; it reads only the PUBLIC api of recipes (titles), shopping
+# (sync-batch generation, §5.5), tasks (cooking tasks from a slot, S-03) and calendar (absence hint,
+# S-01), never their internals nor any other module. No module imports mealplanner (one-way -> no cycle).
+[[tool.importlinter.contracts]]
+name = "mealplanner uses only recipes/shopping/tasks/calendar/wearables public api"
+type = "forbidden"
+source_modules = ["app.modules.mealplanner"]
+allow_indirect_imports = true
+forbidden_modules = [
+    "app.modules.accounts",
+    "app.modules.nutrition",
+    "app.modules.economy",
+    "app.modules.marketplace",
+    "app.modules.capture",
+    "app.modules.weather",
+    "app.modules.scheduling",
+    "app.modules.recipes.service",
+    "app.modules.recipes.models",
+    "app.modules.recipes.router",
+    "app.modules.recipes.schemas",
+    "app.modules.shopping.service",
+    "app.modules.shopping.models",
+    "app.modules.shopping.router",
+    "app.modules.shopping.schemas",
+    "app.modules.tasks.service",
+    "app.modules.tasks.models",
+    "app.modules.tasks.router",
+    "app.modules.tasks.schemas",
+    "app.modules.calendar.service",
+    "app.modules.calendar.models",
+    "app.modules.calendar.router",
+    "app.modules.calendar.schemas",
+    "app.modules.calendar.expand",
+    "app.modules.calendar.ics",
+    "app.modules.calendar.ics_parse",
+]
+
+# scheduling (P5-S8) suggests free slots; it reads only the PUBLIC api of calendar (busy/absences)
+# and weather (forecast), never their internals nor any other module. No module imports scheduling
+# (one-way -> no cycle).
+[[tool.importlinter.contracts]]
+name = "scheduling uses only calendar/weather/wearables public api"
+type = "forbidden"
+source_modules = ["app.modules.scheduling"]
+allow_indirect_imports = true
+forbidden_modules = [
+    "app.modules.accounts",
+    "app.modules.recipes",
+    "app.modules.nutrition",
+    "app.modules.shopping",
+    "app.modules.tasks",
+    "app.modules.economy",
+    "app.modules.marketplace",
+    "app.modules.capture",
+    "app.modules.calendar.service",
+    "app.modules.calendar.models",
+    "app.modules.calendar.router",
+    "app.modules.calendar.schemas",
+    "app.modules.weather.service",
+    "app.modules.weather.models",
+    "app.modules.weather.router",
+    "app.modules.weather.provider",
+    "app.modules.weather.forecast",
+    "app.modules.weather.schemas",
+]
+
+# notes (P7) reads only the PUBLIC api of tasks („Konvertieren-zu Aufgabe", S-?? / P7-S3), never its
+# internals nor any other feature module. Cross-module reaction (e.g. „Brief -> Notiz") goes via the
+# ``note.*`` events; nothing imports notes (api is empty).
+[[tool.importlinter.contracts]]
+name = "notes uses only tasks public api"
+type = "forbidden"
+source_modules = ["app.modules.notes"]
+allow_indirect_imports = true
+forbidden_modules = [
+    "app.modules.accounts",
+    "app.modules.recipes",
+    "app.modules.nutrition",
+    "app.modules.shopping",
+    "app.modules.economy",
+    "app.modules.marketplace",
+    "app.modules.capture",
+    "app.modules.calendar",
+    "app.modules.weather",
+    "app.modules.scheduling",
+    "app.modules.mealplanner",
+    "app.modules.tasks.service",
+    "app.modules.tasks.models",
+    "app.modules.tasks.router",
+    "app.modules.tasks.schemas",
+]
+
+# messaging (P7) reads only the PUBLIC api of tasks („Kümmerst du dich?" -> Aufgabe, P7-S5), never its
+# internals nor any other feature module. The later notification fan-out consumes the ``letter.*``
+# events; nothing imports messaging (api is empty).
+[[tool.importlinter.contracts]]
+name = "messaging uses only tasks public api"
+type = "forbidden"
+source_modules = ["app.modules.messaging"]
+allow_indirect_imports = true
+forbidden_modules = [
+    "app.modules.accounts",
+    "app.modules.recipes",
+    "app.modules.nutrition",
+    "app.modules.shopping",
+    "app.modules.economy",
+    "app.modules.marketplace",
+    "app.modules.capture",
+    "app.modules.calendar",
+    "app.modules.weather",
+    "app.modules.scheduling",
+    "app.modules.mealplanner",
+    "app.modules.notes",
+    "app.modules.tasks.service",
+    "app.modules.tasks.models",
+    "app.modules.tasks.router",
+    "app.modules.tasks.schemas",
+]
+
+# guides (P7-S6) is standalone: it imports only kernel/*, never another feature module. Cross-module
+# links (object_links, later) will use guides.api / events; nothing imports guides yet (api is empty).
+[[tool.importlinter.contracts]]
+name = "guides must not depend on other modules"
+type = "forbidden"
+source_modules = ["app.modules.guides"]
+forbidden_modules = [
+    "app.modules.accounts",
+    "app.modules.recipes",
+    "app.modules.nutrition",
+    "app.modules.shopping",
+    "app.modules.tasks",
+    "app.modules.economy",
+    "app.modules.marketplace",
+    "app.modules.capture",
+    "app.modules.calendar",
+    "app.modules.weather",
+    "app.modules.scheduling",
+    "app.modules.mealplanner",
+    "app.modules.notes",
+    "app.modules.messaging",
+]
+
+# comments (P7-S7) is standalone: it imports only kernel/*, never another feature module. Comments are
+# generic (object_type/object_id, no cross-module FK); the @-mention fan-out consumes ``comment.*``.
+[[tool.importlinter.contracts]]
+name = "comments must not depend on other modules"
+type = "forbidden"
+source_modules = ["app.modules.comments"]
+forbidden_modules = [
+    "app.modules.accounts",
+    "app.modules.recipes",
+    "app.modules.nutrition",
+    "app.modules.shopping",
+    "app.modules.tasks",
+    "app.modules.economy",
+    "app.modules.marketplace",
+    "app.modules.capture",
+    "app.modules.calendar",
+    "app.modules.weather",
+    "app.modules.scheduling",
+    "app.modules.mealplanner",
+    "app.modules.notes",
+    "app.modules.messaging",
+    "app.modules.guides",
+]
+
+# links (P7-S8) is standalone: it imports only kernel/*, never another feature module. Links are
+# generic ((type, id) endpoints, no cross-module FK); any orphan cleanup consumes ``link.*`` events.
+[[tool.importlinter.contracts]]
+name = "links must not depend on other modules"
+type = "forbidden"
+source_modules = ["app.modules.links"]
+forbidden_modules = [
+    "app.modules.accounts",
+    "app.modules.recipes",
+    "app.modules.nutrition",
+    "app.modules.shopping",
+    "app.modules.tasks",
+    "app.modules.economy",
+    "app.modules.marketplace",
+    "app.modules.capture",
+    "app.modules.calendar",
+    "app.modules.weather",
+    "app.modules.scheduling",
+    "app.modules.mealplanner",
+    "app.modules.notes",
+    "app.modules.messaging",
+    "app.modules.guides",
+    "app.modules.comments",
+]
+
+# vault (P7-S13) is standalone: it imports only kernel/*, never another feature module. It is
+# self-contained client-side-encrypted storage; the server only stores opaque ciphertext (ADR-0067).
+[[tool.importlinter.contracts]]
+name = "vault must not depend on other modules"
+type = "forbidden"
+source_modules = ["app.modules.vault"]
+forbidden_modules = [
+    "app.modules.accounts",
+    "app.modules.recipes",
+    "app.modules.nutrition",
+    "app.modules.shopping",
+    "app.modules.tasks",
+    "app.modules.economy",
+    "app.modules.marketplace",
+    "app.modules.capture",
+    "app.modules.calendar",
+    "app.modules.weather",
+    "app.modules.scheduling",
+    "app.modules.mealplanner",
+    "app.modules.notes",
+    "app.modules.messaging",
+    "app.modules.guides",
+    "app.modules.comments",
+    "app.modules.links",
+]
+
+# feedback (P8-S5) is standalone: it imports only kernel/*, never another feature module. The ops
+# console reads submissions later (P8-S8) via an aggregate/action surface, never this module.
+[[tool.importlinter.contracts]]
+name = "feedback must not depend on other modules"
+type = "forbidden"
+source_modules = ["app.modules.feedback"]
+forbidden_modules = [
+    "app.modules.accounts",
+    "app.modules.recipes",
+    "app.modules.nutrition",
+    "app.modules.shopping",
+    "app.modules.tasks",
+    "app.modules.economy",
+    "app.modules.marketplace",
+    "app.modules.capture",
+    "app.modules.calendar",
+    "app.modules.weather",
+    "app.modules.scheduling",
+    "app.modules.mealplanner",
+    "app.modules.notes",
+    "app.modules.messaging",
+    "app.modules.guides",
+    "app.modules.comments",
+    "app.modules.links",
+    "app.modules.vault",
+]
+
+# digest (P8-S6) is a logic-only module: the weekly worker cron calls it. It uses only the PUBLIC
+# api of accounts (recipients) + tasks (open-task counts); never their internals, never another
+# module. No feature module imports digest (one-way -> no cycle).
+[[tool.importlinter.contracts]]
+name = "digest uses only accounts/tasks public api"
+type = "forbidden"
+source_modules = ["app.modules.digest"]
+allow_indirect_imports = true
+forbidden_modules = [
+    "app.modules.recipes",
+    "app.modules.nutrition",
+    "app.modules.shopping",
+    "app.modules.economy",
+    "app.modules.marketplace",
+    "app.modules.capture",
+    "app.modules.calendar",
+    "app.modules.weather",
+    "app.modules.scheduling",
+    "app.modules.mealplanner",
+    "app.modules.notes",
+    "app.modules.messaging",
+    "app.modules.guides",
+    "app.modules.comments",
+    "app.modules.links",
+    "app.modules.vault",
+    "app.modules.feedback",
+    "app.modules.wearables",
+    "app.modules.accounts.service",
+    "app.modules.accounts.models",
+    "app.modules.accounts.router",
+    "app.modules.accounts.schemas",
+    "app.modules.tasks.service",
+    "app.modules.tasks.models",
+    "app.modules.tasks.router",
+    "app.modules.tasks.schemas",
+]
+
+[[tool.importlinter.contracts]]
+name = "digest must not be imported by other modules"
+type = "forbidden"
+source_modules = [
+    "app.modules.accounts",
+    "app.modules.recipes",
+    "app.modules.nutrition",
+    "app.modules.shopping",
+    "app.modules.tasks",
+    "app.modules.economy",
+    "app.modules.marketplace",
+    "app.modules.capture",
+    "app.modules.calendar",
+    "app.modules.weather",
+    "app.modules.scheduling",
+    "app.modules.mealplanner",
+    "app.modules.notes",
+    "app.modules.messaging",
+    "app.modules.guides",
+    "app.modules.comments",
+    "app.modules.links",
+    "app.modules.vault",
+    "app.modules.feedback",
+]
+forbidden_modules = ["app.modules.digest"]
+
+# backoffice (P8-S7b) is the ops console: it imports only kernel/*, never a feature module, and reads
+# household data only via aggregate views / action procedures (ADR-0015). No module imports it.
+[[tool.importlinter.contracts]]
+name = "backoffice must not depend on other modules"
+type = "forbidden"
+source_modules = ["app.modules.backoffice"]
+forbidden_modules = [
+    "app.modules.accounts",
+    "app.modules.recipes",
+    "app.modules.nutrition",
+    "app.modules.shopping",
+    "app.modules.tasks",
+    "app.modules.economy",
+    "app.modules.marketplace",
+    "app.modules.capture",
+    "app.modules.calendar",
+    "app.modules.weather",
+    "app.modules.scheduling",
+    "app.modules.mealplanner",
+    "app.modules.notes",
+    "app.modules.messaging",
+    "app.modules.guides",
+    "app.modules.comments",
+    "app.modules.links",
+    "app.modules.vault",
+    "app.modules.feedback",
+    "app.modules.digest",
+    "app.modules.wearables",
+]
+
+# ``wearables`` (P9-S5, ADR-0081) haengt einzig an der accounts-api (Consent-Ledger, Rollen- und
+# Flag-Pruefung) — nie an accounts-Internas, nie an einem anderen Modul. Die Gegenrichtung ist NICHT
+# mehr leer: seit 9-S7 importieren scheduling und mealplanner ``wearables.api`` (nur den booleschen
+# Erholungs-Hinweis, nie einen Messwert) — ihre eigenen Kontrakte fuehren das auf. Dieser Kontrakt
+# haelt weiterhin die Richtung wearables -> * geschlossen, damit kein Zyklus entsteht.
+[[tool.importlinter.contracts]]
+name = "wearables uses only accounts public api"
+type = "forbidden"
+source_modules = ["app.modules.wearables"]
+allow_indirect_imports = true
+forbidden_modules = [
+    "app.modules.recipes",
+    "app.modules.nutrition",
+    "app.modules.shopping",
+    "app.modules.tasks",
+    "app.modules.economy",
+    "app.modules.marketplace",
+    "app.modules.capture",
+    "app.modules.calendar",
+    "app.modules.weather",
+    "app.modules.scheduling",
+    "app.modules.mealplanner",
+    "app.modules.notes",
+    "app.modules.messaging",
+    "app.modules.guides",
+    "app.modules.comments",
+    "app.modules.links",
+    "app.modules.vault",
+    "app.modules.feedback",
+    "app.modules.digest",
+    "app.modules.backoffice",
+    "app.modules.accounts.service",
+    "app.modules.accounts.models",
+    "app.modules.accounts.router",
+    "app.modules.accounts.schemas",
+]
+
+# Nur scheduling + mealplanner duerfen wearables ueberhaupt sehen (9-S7, Synergie S-14) — und
+# auch die ausschliesslich ueber wearables.api, nie ueber Internas. Jedes andere Fachmodul bleibt
+# gesperrt: eine breitere Sichtbarkeit waere der erste Schritt dahin, dass Gesundheitsdaten
+# irgendwo landen, wo sie ein anderes Mitglied sieht (N-2).
+[[tool.importlinter.contracts]]
+name = "wearables must not be imported by other modules"
+type = "forbidden"
+source_modules = [
+    "app.modules.accounts",
+    "app.modules.recipes",
+    "app.modules.nutrition",
+    "app.modules.shopping",
+    "app.modules.tasks",
+    "app.modules.economy",
+    "app.modules.marketplace",
+    "app.modules.capture",
+    "app.modules.calendar",
+    "app.modules.weather",
+    "app.modules.notes",
+    "app.modules.messaging",
+    "app.modules.guides",
+    "app.modules.comments",
+    "app.modules.links",
+    "app.modules.vault",
+    "app.modules.feedback",
+    "app.modules.backoffice",
+]
+forbidden_modules = ["app.modules.wearables"]
+
+# Die beiden erlaubten Konsumenten duerfen NUR die Naht sehen. Ein direkter Griff auf
+# wearables.models/service/signal wuerde die Roh-Gesundheitswerte in ihr Modul holen — die Naht
+# gibt bewusst nur ein Boolean heraus.
+[[tool.importlinter.contracts]]
+name = "wearable consumers use only its public api"
+type = "forbidden"
+source_modules = ["app.modules.scheduling", "app.modules.mealplanner"]
+allow_indirect_imports = true
+forbidden_modules = [
+    "app.modules.wearables.models",
+    "app.modules.wearables.service",
+    "app.modules.wearables.signal",
+    "app.modules.wearables.sync",
+    "app.modules.wearables.router",
+    "app.modules.wearables.schemas",
+    "app.modules.wearables.tokens",
+    "app.modules.wearables.state",
+]
