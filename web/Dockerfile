@@ -1,5 +1,5 @@
 # Production web image (used from Phase 8 onward; dev runs `npm run dev` on host).
-FROM node:22-alpine AS build
+FROM node:26-alpine AS build
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci
