@@ -26,10 +26,12 @@ updates:
       interval: weekly
     open-pull-requests-limit: 2
     ignore:
-      # Postgres 18 and Python 3.12 are architecture decisions, not weekly updates.
+      # Postgres 18, Python 3.12 and Node 22 LTS are architecture decisions, not weekly updates.
       - dependency-name: postgres
         update-types: ["version-update:semver-major"]
       - dependency-name: python
+        update-types: ["version-update:semver-major"]
+      - dependency-name: node
         update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
