@@ -4,8 +4,7 @@ with short timeouts and degrades gracefully (no hang when infra is absent)."""
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable
-from typing import Any, cast
+from typing import Any
 
 from fastapi import APIRouter, Response
 
@@ -51,7 +50,7 @@ async def _check_redis() -> str:
 
     try:
         async with asyncio.timeout(2):
-            await cast(Awaitable[bool], get_redis().ping())
+            await get_redis().ping()
         return "ok"
     except Exception as exc:
         return f"error: {type(exc).__name__}"

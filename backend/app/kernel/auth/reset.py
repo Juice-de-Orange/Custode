@@ -36,7 +36,7 @@ async def consume_reset_token(token: str) -> uuid.UUID | None:
     raw = await cast("Awaitable[str | None]", redis.get(key))
     if raw is None:
         return None
-    await cast("Awaitable[int]", redis.delete(key))
+    await redis.delete(key)
     try:
         return uuid.UUID(raw)
     except ValueError:

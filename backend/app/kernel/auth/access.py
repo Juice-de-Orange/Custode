@@ -68,10 +68,8 @@ async def mint_access(
         "Awaitable[object]",
         redis.set(_access_key(token_hash), payload, ex=settings.access_token_ttl_s),
     )
-    await cast("Awaitable[int]", redis.sadd(_family_key(family_id), token_hash))
-    await cast(
-        "Awaitable[bool]", redis.expire(_family_key(family_id), settings.refresh_token_ttl_s)
-    )
+    await redis.sadd(_family_key(family_id), token_hash)
+    await redis.expire(_family_key(family_id), settings.refresh_token_ttl_s)
     return token
 
 
@@ -100,7 +98,7 @@ async def load_access(token: str) -> AccessClaims | None:
 
 async def revoke_access(token: str) -> None:
     """Drop a single access token (logout, or the consumed token on rotation)."""
-    await cast("Awaitable[int]", get_redis().delete(_access_key(hash_token(token))))
+    await get_redis().delete(_access_key(hash_token(token)))
 
 
 async def _drop_family_tokens(family_id: uuid.UUID) -> None:
@@ -108,8 +106,8 @@ async def _drop_family_tokens(family_id: uuid.UUID) -> None:
     redis = get_redis()
     members = await cast("Awaitable[set[str]]", redis.smembers(_family_key(family_id)))
     if members:
-        await cast("Awaitable[int]", redis.delete(*[_access_key(h) for h in members]))
-    await cast("Awaitable[int]", redis.delete(_family_key(family_id)))
+        await redis.delete(*[_access_key(h) for h in members])
+    await redis.delete(_family_key(family_id))
 
 
 async def revoke_access_family(family_id: uuid.UUID) -> None:
@@ -118,7 +116,7 @@ async def revoke_access_family(family_id: uuid.UUID) -> None:
     Räumt auch den gemerkten Haushalt ab: die Sitzung ist beendet, es gibt nichts mehr
     fortzuschreiben."""
     await _drop_family_tokens(family_id)
-    await cast("Awaitable[int]", get_redis().delete(_active_key(family_id)))
+    await get_redis().delete(_active_key(family_id))
 
 
 async def revoke_access_tokens(family_id: uuid.UUID) -> None:
@@ -143,7 +141,7 @@ async def set_active_household(
     forward even after the access token expired. ``None`` clears it."""
     redis = get_redis()
     if household_id is None or role is None:
-        await cast("Awaitable[int]", redis.delete(_active_key(family_id)))
+        await redis.delete(_active_key(family_id))
         return
     payload = json.dumps({"household_id": str(household_id), "role": role.value})
     await cast(
