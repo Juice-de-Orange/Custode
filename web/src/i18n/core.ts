@@ -13,6 +13,8 @@
 import { i18n } from "@lingui/core";
 import { compileMessage } from "@lingui/message-utils/compileMessage";
 
+import { detectLocale } from "../lib/locale";
+
 type Compiled = ReturnType<typeof compileMessage>;
 
 function compileCatalog(msgs: Record<string, string>): Record<string, Compiled> {
@@ -21,13 +23,17 @@ function compileCatalog(msgs: Record<string, string>): Record<string, Compiled> 
   return out;
 }
 
-/** Load one surface's DE+EN catalogs into the shared Lingui instance and activate German.
+/** Load one surface's DE+EN catalogs into the shared Lingui instance and activate the language
+ *  for this browser (stored choice, else browser language, else German — `lib/locale`).
  *  Called exactly once per entry point, at module load. */
 export function activateCatalogs(
   de: Record<string, string>,
   en: Record<string, string>,
 ): typeof i18n {
   i18n.load({ de: compileCatalog(de), en: compileCatalog(en) });
-  i18n.activate("de");
+  const locale = detectLocale();
+  i18n.activate(locale);
+  // index.html ships lang="de"; screen readers and hyphenation follow this attribute.
+  if (typeof document !== "undefined") document.documentElement.lang = locale;
   return i18n;
 }

@@ -63,6 +63,9 @@ export function CalendarPage() {
   const [feedUrl, setFeedUrl] = useState<string | null>(null);
   const [importMsg, setImportMsg] = useState<string | null>(null);
   const [createError, setCreateError] = useState<MessageRef | null>(null);
+  // End before start: said at the field it concerns, before the request — the server's answer to
+  // it is a plain validation 422, which would only surface as the generic message.
+  const [endError, setEndError] = useState(false);
   const [agendaError, setAgendaError] = useState<MessageRef | null>(null);
   // The occurrence currently being moved (its original_start) + the new start the user picked.
   const [movingKey, setMovingKey] = useState<string | null>(null);
@@ -113,6 +116,11 @@ export function CalendarPage() {
     event.preventDefault();
     if (!title.trim() || !startsAt || !endsAt) return;
     setCreateError(null);
+    if (new Date(endsAt).getTime() < new Date(startsAt).getTime()) {
+      setEndError(true);
+      return;
+    }
+    setEndError(false);
     const base = {
       title: title.trim(),
       starts_at: new Date(startsAt).toISOString(),
@@ -201,15 +209,30 @@ export function CalendarPage() {
           type="datetime-local"
           label={<Trans id="calendar.start" />}
           value={startsAt}
-          onChange={(e) => setStartsAt(e.target.value)}
+          onChange={(e) => {
+            setStartsAt(e.target.value);
+            setEndError(false);
+          }}
         />
-        <Field
-          id="ev-end"
-          type="datetime-local"
-          label={<Trans id="calendar.end" />}
-          value={endsAt}
-          onChange={(e) => setEndsAt(e.target.value)}
-        />
+        <div className="space-y-1">
+          <Field
+            id="ev-end"
+            type="datetime-local"
+            label={<Trans id="calendar.end" />}
+            value={endsAt}
+            onChange={(e) => {
+              setEndsAt(e.target.value);
+              setEndError(false);
+            }}
+            aria-invalid={endError ? true : undefined}
+            aria-describedby={endError ? "ev-end-error" : undefined}
+          />
+          {endError ? (
+            <p id="ev-end-error" role="alert" className="text-sm text-rost dark:text-bernstein">
+              <Trans id="calendar.err.endBeforeStart" />
+            </p>
+          ) : null}
+        </div>
         <label className="flex items-center gap-2 py-2 text-sm text-tinte dark:text-kalk">
           <input type="checkbox" checked={allDay} onChange={(e) => setAllDay(e.target.checked)} />
           <Trans id="calendar.allDay" />

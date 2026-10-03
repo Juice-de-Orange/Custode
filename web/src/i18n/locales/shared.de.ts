@@ -16,4 +16,7 @@ export const shared: Record<string, string> = {
   "security.passkeys.unsupported": "Dieser Browser unterstützt keine Passkeys.",
   "security.passkeys.created": "Erstellt am",
   "theme.toggle": "Design: {mode}",
+  "theme.system": "System",
+  "theme.light": "Hell",
+  "theme.dark": "Dunkel",
 };

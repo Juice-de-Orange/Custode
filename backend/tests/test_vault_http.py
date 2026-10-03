@@ -123,6 +123,77 @@ async def test_envelope_round_trip_and_idempotent(app: FastAPI) -> None:
         assert passphrases[0]["wrapped_key"] == "bmV3"
 
 
+async def _join_as_member(admin: AsyncClient, member: AsyncClient) -> None:
+    """Register a second adult and bring them into the admin's household via an invite."""
+    invite = await admin.post("/v1/household/invites", json={}, headers=_csrf(admin))
+    assert invite.status_code == 201, invite.text
+    email = f"u{uuid.uuid4().hex[:12]}@example.de"
+    await member.post(
+        "/v1/auth/register",
+        json={"email": email, "password": _PASSWORD, "display_name": "Zweite"},
+    )
+    joined = await member.post(
+        "/v1/households/join", json={"code": invite.json()["code"]}, headers=_csrf(member)
+    )
+    assert joined.status_code == 201, joined.text
+
+
+async def test_recovery_envelope_is_write_once(app: FastAPI) -> None:
+    """BUGLOG 2026-10-03: a second member's "setup" replaced the household-wide recovery envelope
+    — the first member's recovery code and entries were gone. The server cannot compare the wrapped
+    keys (opaque), so it must refuse any replacement, whichever client asks."""
+    async with _client(app) as admin, _client(app) as member:
+        await _admin_household(admin)
+        first = {"kind": "recovery", "wrapped_key": "ZXJzdGVy", "wrap_meta": {"salt": "YQ=="}}
+        stored = await admin.put("/v1/vault/keys", json=first, headers=_csrf(admin))
+        assert stored.status_code == 200, stored.text
+        await _join_as_member(admin, member)
+
+        # Before: the second member reads the household's recovery envelope — the thing to lose.
+        before = (await member.get("/v1/vault/keys")).json()
+        assert [(k["kind"], k["wrapped_key"]) for k in before] == [("recovery", "ZXJzdGVy")]
+
+        # The second member's setup call is refused and names the reason …
+        other = {"kind": "recovery", "wrapped_key": "endlaXRlcg==", "wrap_meta": {"salt": "Yg=="}}
+        refused = await member.put("/v1/vault/keys", json=other, headers=_csrf(member))
+        assert refused.status_code == 409, refused.text
+        assert refused.json()["type"].endswith("#vault_already_set_up")
+        # … for the member who created it as well, and a higher key_version is no way around it
+        # (it would shadow the real envelope in ``GET /keys``).
+        assert (
+            await admin.put("/v1/vault/keys", json=other, headers=_csrf(admin))
+        ).status_code == 409
+        shadow = await member.put(
+            "/v1/vault/keys", json={**other, "key_version": 2}, headers=_csrf(member)
+        )
+        assert shadow.status_code == 409, shadow.text
+
+        # After: both still see the original envelope, and only that one.
+        for client in (admin, member):
+            keys = (await client.get("/v1/vault/keys")).json()
+            recovery = [k for k in keys if k["kind"] == "recovery"]
+            assert [(k["wrapped_key"], k["wrap_meta"]) for k in recovery] == [
+                ("ZXJzdGVy", {"salt": "YQ=="})
+            ]
+
+        # Counter-check: a byte-identical replay stays idempotent (a retried request is not an
+        # error), and the second member can still store their OWN passphrase envelope — that is
+        # how joining works (the household key re-wrapped under their passphrase).
+        replay = await member.put("/v1/vault/keys", json=first, headers=_csrf(member))
+        assert replay.status_code == 200, replay.text
+        assert replay.json()["id"] == stored.json()["id"]
+        joined = await member.put(
+            "/v1/vault/keys",
+            json={"kind": "passphrase", "wrapped_key": "bWVpbnM="},
+            headers=_csrf(member),
+        )
+        assert joined.status_code == 200, joined.text
+        mine = (await member.get("/v1/vault/keys")).json()
+        assert {k["kind"] for k in mine} == {"passphrase", "recovery"}
+        # The admin never sees the other member's passphrase envelope.
+        assert {k["kind"] for k in (await admin.get("/v1/vault/keys")).json()} == {"recovery"}
+
+
 async def test_item_crud_with_etag_and_summary_hides_ciphertext(app: FastAPI) -> None:
     async with _client(app) as admin:
         await _admin_household(admin)

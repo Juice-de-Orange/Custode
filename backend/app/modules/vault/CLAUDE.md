@@ -29,7 +29,8 @@ Storage + Schlüssel-Umschläge, ADR-0067). Krypto im Client (libsodium-wasm) = 
   `version` = ETag.
 
 ## Schreibpfad
-- Items: **online-first PATCH + If-Match** (ETag), Soft-Delete. Envelopes: idempotenter Upsert (PUT).
+- Items: **online-first PATCH + If-Match** (ETag), Soft-Delete. Envelopes (PUT): Passphrase-Umschlag
+  = idempotenter Upsert; **Recovery-Umschlag = write-once** (409 `vault_already_set_up`).
 
 ## Schnittstellen (HTTP, `/v1/vault`)
 - `GET /keys` → eigene Passphrase-Umschläge + Haushalts-Recovery · `PUT /keys` (CSRF, Upsert).
@@ -46,4 +47,7 @@ Storage + Schlüssel-Umschläge, ADR-0067). Krypto im Client (libsodium-wasm) = 
 - **Niemals** serverseitig entschlüsseln, Klartext-Felder einführen oder Ciphertext/Meta loggen.
 - Kein Klartext-Name/Label (auch der Titel ist Ciphertext in `item_meta`).
 - Kinder/Gäste nie zulassen.
+- **Den Recovery-Umschlag nie ersetzbar machen.** Der Server kann nicht prüfen, ob ein neuer
+  Umschlag dasselbe `K_h` trägt — ein Ersetzen tauscht den Schlüssel unter allen anderen Mitgliedern
+  aus (BUGLOG 2026-10-03). Rotation bekommt einen eigenen Pfad und ADR.
 - `vault` importiert **kein** anderes Modul; Reaktion nur über `vault.*`-Events.

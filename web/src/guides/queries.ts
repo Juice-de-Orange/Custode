@@ -1,3 +1,4 @@
+import { formDataBodySerializer } from "@hey-api/client-fetch";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { client } from "../api/client.gen";
@@ -89,12 +90,15 @@ async function fetchAttachments(guideId: string): Promise<AttachmentResponse[]> 
   return (data ?? []) as AttachmentResponse[];
 }
 
-async function uploadAttachment(vars: { guideId: string; file: File }): Promise<AttachmentResponse> {
-  const form = new FormData();
-  form.append("file", vars.file);
+export async function uploadAttachment(vars: { guideId: string; file: File }): Promise<AttachmentResponse> {
+  // Multipart needs the client's own serializer: its default is JSON.stringify, which turns a
+  // FormData into "{}". And the default `Content-Type: application/json` has to go (null deletes
+  // it) so the runtime writes `multipart/form-data` with the boundary itself.
   const { data, error, response } = await client.post({
     url: `/v1/guides/${vars.guideId}/attachments`,
-    body: form,
+    ...formDataBodySerializer,
+    body: { file: vars.file },
+    headers: { "Content-Type": null },
   });
   if (error) throw toProblem(error, response?.status);
   return data as AttachmentResponse;

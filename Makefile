@@ -15,7 +15,7 @@ help:
 	@echo   make lint-imports - import-linter (module boundaries)
 	@echo   make test         - pytest (backend) + vitest (web)
 	@echo   make format       - ruff format + fix (backend)
-	@echo   make install      - uv sync (backend) + npm install (web)
+	@echo   make install      - uv sync (backend) + npm ci (web)
 	@echo   make web          - run web dev server
 
 dev:
@@ -57,7 +57,7 @@ format:
 
 install:
 	uv --directory backend sync
-	npm --prefix web install
+	npm --prefix web ci
 
 web:
 	npm --prefix web run dev

@@ -334,8 +334,9 @@ export type EnvelopeResponse = {
 };
 
 /**
- * Store/replace a wrapped household-key envelope. ``passphrase`` binds to the current member;
- * ``recovery`` is household-wide (member_id NULL). The server sets ``member_id`` itself.
+ * Store a wrapped household-key envelope. ``passphrase`` binds to the current member and may be
+ * replaced; ``recovery`` is household-wide (member_id NULL) and write-once. The server sets
+ * ``member_id`` itself.
  */
 export type EnvelopeUpsert = {
     kind: 'passphrase' | 'recovery';

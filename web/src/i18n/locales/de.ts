@@ -73,6 +73,12 @@ export const messages: Record<string, string> = {
   "profile.save": "Speichern",
   "profile.saved": "Profil gespeichert.",
   "profile.error.conflict": "Profil wurde anderswo geändert. Bitte neu laden und erneut versuchen.",
+  "profile.language.title": "Sprache",
+  "profile.language.label": "Sprache der Oberfläche",
+  "profile.language.auto": "Wie im Browser",
+  "profile.language.de": "Deutsch",
+  "profile.language.en": "English",
+  "profile.language.hint": "Die Auswahl gilt für diesen Browser; die Seite wird neu geladen.",
   "child.section": "Kinder-Konten",
   "child.displayName": "Name des Kindes",
   "child.username": "Benutzername",
@@ -86,6 +92,11 @@ export const messages: Record<string, string> = {
   "child.login.title": "Kinder-Anmeldung",
   "child.login.submit": "Anmelden",
   "child.login.noHousehold": "Kein Haushalt angegeben. Bitte den Link vom Elternteil verwenden.",
+  "child.loginLink.label": "Anmelde-Link für Kinder",
+  "child.loginLink.hint":
+    "Kinder melden sich über diesen Link mit Benutzername und PIN an. Öffne ihn auf dem Gerät des Kindes oder lege ihn dort als Lesezeichen ab.",
+  "child.loginLink.copy": "Link kopieren",
+  "child.loginLink.copied": "Link kopiert.",
   "account.title": "Konto",
   "account.loggedInAs": "Angemeldet als",
   "account.role": "Rolle",
@@ -420,14 +431,17 @@ export const messages: Record<string, string> = {
   "install.ios.hint": "Auf dem iPhone/iPad: Teilen-Menü öffnen und „Zum Home-Bildschirm“ wählen.",
   "install.ios.note": "In der installierten App meldest du dich einmal neu an — am schnellsten per Passkey.",
   "install.dismiss": "Ausblenden",
-  "theme.system": "System",
-  "theme.light": "Hell",
-  "theme.dark": "Dunkel",
   "vault.setupHint": "Lege eine Vault-Passphrase fest. Sie verschlüsselt deinen Tresor clientseitig — der Server sieht sie nie.",
   "vault.unlockHint": "Gib deine Vault-Passphrase ein, um den Tresor zu entsperren.",
   "vault.passphrase": "Vault-Passphrase",
   "vault.setup": "Tresor einrichten",
   "vault.unlock": "Entsperren",
+  "vault.joinHint":
+    "Der Tresor dieses Haushalts ist bereits eingerichtet. Gib den Wiederherstellungs-Code des Haushalts ein, um ihm beizutreten — du bekommst ihn von dem Mitglied, das den Tresor eingerichtet hat. Danach legst du deine eigene Passphrase fest.",
+  "vault.join": "Tresor beitreten",
+  "vault.notForChildren": "Der Tresor steht Kinder- und Gastkonten nicht zur Verfügung.",
+  "vault.error.alreadySetUp":
+    "Der Tresor wurde inzwischen von einem anderen Mitglied eingerichtet. Tritt ihm mit dem Wiederherstellungs-Code des Haushalts bei.",
   "vault.error.shortPassphrase": "Die Passphrase braucht mindestens 8 Zeichen.",
   "vault.error.wrongPassphrase": "Falsche Passphrase.",
   "vault.error.wrongRecovery": "Falscher Wiederherstellungs-Code.",
@@ -442,7 +456,8 @@ export const messages: Record<string, string> = {
   "vault.exitNoticeBody":
     "Der Tresor-Schlüssel wird dabei derzeit nicht gewechselt. Wer das Tresor-Passwort kennt, kann alles weiter entschlüsseln, was vorher gespeichert wurde — auch nach dem Austritt. Ändere in dem Fall das Tresor-Passwort und die darin abgelegten Zugangsdaten.",
   "vault.recoveryTitle": "Wiederherstellungs-Code",
-  "vault.recoveryHint": "Notiere diesen Code sicher. Nur damit kommst du an den Tresor, falls du die Passphrase vergisst. Er wird nur einmal angezeigt.",
+  "vault.recoveryHint":
+    "Notiere diesen Code sicher. Er öffnet den Tresor, falls du die Passphrase vergisst, und weitere Mitglieder des Haushalts brauchen ihn, um dem Tresor beizutreten. Er wird nur einmal angezeigt.",
   "vault.add": "Eintrag hinzufügen",
   "vault.name": "Name (verschlüsselt)",
   "vault.secret": "Geheimnis (verschlüsselt)",
@@ -638,6 +653,7 @@ export const messages: Record<string, string> = {
   "calendar.err.notSynced":
     "Der Termin ist noch nicht mit dem externen Kalender abgeglichen — versuch es in ein paar Minuten erneut.",
   "calendar.err.writeFailed": "Schreiben in den externen Kalender fehlgeschlagen: {category}",
+  "calendar.err.endBeforeStart": "Das Ende darf nicht vor dem Beginn liegen.",
   "calendar.err.externalCreateUnsupported":
     "Externe Kalender unterstützen hier nur normale Termine in UTC.",
   "calendar.subs.section": "Externe Kalender (CalDAV)",

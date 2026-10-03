@@ -9,7 +9,7 @@ from __future__ import annotations
 import pytest
 
 from app.kernel.auth import totp
-from app.scripts.create_operator import _PASSWORD_ENV, _generate_password, main
+from app.scripts.create_operator import _PASSWORD_ENV, _generate_password, _valid_email, main
 
 
 def test_generated_password_is_long_and_unique() -> None:
@@ -49,3 +49,29 @@ def test_refuses_to_run_in_prod_without_the_ops_actions_role(
         assert exc.value.code == 2
     finally:
         get_settings.cache_clear()
+
+
+@pytest.mark.parametrize(
+    "email", ["not-an-email", "ops@", "@example.org", "ops@a@example.org", "o ps@example.org", ""]
+)
+def test_refuses_an_address_that_is_not_an_email(
+    email: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """``create_operator not-an-email`` used to create the operator and print credentials for a
+    login name nobody can have meant. It must stop before it touches the database."""
+
+    def _must_not_run(*_a: object, **_k: object) -> None:
+        raise AssertionError("the script reached the database with an invalid address")
+
+    monkeypatch.setattr("app.scripts.create_operator._run", _must_not_run)
+    monkeypatch.setattr("sys.argv", ["create_operator", email])
+    with pytest.raises(SystemExit) as exc:
+        main()
+    assert exc.value.code == 2
+    assert "E-Mail" in capsys.readouterr().err
+
+
+def test_accepts_ordinary_addresses() -> None:
+    assert _valid_email("ops@example.org")
+    assert _valid_email("  First.Last+ops@mail.example.co.uk ")
+    assert _valid_email("ops@localhost")  # a login name on a LAN host, not a deliverable address

@@ -69,8 +69,8 @@ async function deleteItem(id: string): Promise<void> {
   if (error) throw toProblem(error, response?.status);
 }
 
-export function useVaultKeys() {
-  return useQuery({ queryKey: [...VAULT_QUERY_KEY, "keys"], queryFn: fetchKeys });
+export function useVaultKeys(enabled = true) {
+  return useQuery({ queryKey: [...VAULT_QUERY_KEY, "keys"], queryFn: fetchKeys, enabled });
 }
 
 export function usePutKey() {

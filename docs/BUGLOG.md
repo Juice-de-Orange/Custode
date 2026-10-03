@@ -17,6 +17,62 @@ Eintragsschema:
 
 ---
 
+## 2026-10-03 — Das zweite Mitglied zerstörte den Tresor des ersten  (Modul: vault, Schwere: hoch)
+- **Symptom:** Das zweite erwachsene Mitglied eines Haushalts sah auf `/vault` nur „Tresor
+  einrichten". Danach: der Wiederherstellungs-Code des ersten Mitglieds galt nicht mehr, und dessen
+  Einträge erschienen dem zweiten als `??` — mit Löschen-Knopf. Kein Fehler, nirgends.
+- **Ursache:** Zwei Hälften, die einzeln harmlos aussahen. Die Web-Route entschied „einrichten oder
+  entsperren" allein an *„habe **ich** einen Passphrase-Umschlag"* statt an *„hat **der Haushalt**
+  einen Tresor"* — `setup()` erzeugte deshalb für jedes neue Mitglied ein neues `K_h`. Und
+  `upsert_envelope` ersetzte den **haushaltsweiten** Recovery-Umschlag wie einen persönlichen.
+  Ein Beitritt war nie gebaut; ADR-0067 beschreibt das Umschlagmodell, aber keinen Weg hinein.
+- **Fix:** Server: der Recovery-Umschlag ist **write-once** (409 `vault_already_set_up`, für jede
+  `key_version`; identischer Replay bleibt 200) — kein Client kann den Verlust mehr auslösen.
+  Web: hat der Haushalt einen Recovery-Umschlag, heißt die Seite „Tresor beitreten": der
+  Wiederherstellungs-Code des Haushalts entpackt `K_h`, das Mitglied packt **dasselbe** `K_h` unter
+  die eigene Passphrase. `setup()` schreibt jetzt zuerst den Recovery-Umschlag (ADR-0067-Nachtrag).
+- **Regressionstest:** `tests/test_vault_http.py::test_recovery_envelope_is_write_once` (vorher rot:
+  200 statt 409) und `web/src/test/vault-join.test.tsx` mit echter libsodium-Krypto — der Umschlag
+  des zweiten Mitglieds entpackt zum **selben** Schlüssel, der Recovery-Umschlag bleibt unberührt
+  (vorher rot: „Tresor einrichten" wurde angeboten).
+- **Lehre:** Wieder die teuerste Klasse aus der Root-`CLAUDE.md` — **die Prüfung hing an einer
+  Repräsentation statt am Begriff** („mein Umschlag fehlt" ≠ „es gibt keinen Tresor"). Und: ein
+  Upsert auf einer **geteilten** Zeile ist ein Schreibrecht jedes Mitglieds auf das Eigentum aller.
+  Was der Server nicht prüfen kann (opaker Ciphertext), darf er nicht ersetzen lassen. Kein Test
+  hatte je zwei Mitglieder im selben Tresor.
+
+## 2026-10-03 — Jeder Upload aus der PWA endete mit 422  (Modul: web/guides, web/recipes, Schwere: hoch)
+- **Symptom:** Anhang an einer Anleitung und Rezeptfoto: „Etwas ist schiefgelaufen", im Netzwerk
+  `422`. Die Anfrage trug `Content-Type: application/json` und den Body `{}`.
+- **Ursache:** Beide Aufrufe reichten ein `FormData` an den generierten Client, ohne dessen
+  `bodySerializer` zu setzen. Der Default ist `JSON.stringify` — ein `FormData` wird zu `{}` — und
+  der Default-Header `application/json` blieb stehen.
+- **Fix:** `...formDataBodySerializer`, `body: { file }`, `headers: { "Content-Type": null }` (null
+  löscht den Default, die Laufzeit setzt `multipart/form-data` samt Boundary) in
+  `guides/queries.ts` und `recipes/queries.ts`. Weitere `FormData`-Stellen gibt es nicht (der
+  ICS-Import schickt bewusst JSON, ADR-0044).
+- **Regressionstest:** `web/src/test/upload-multipart.test.ts` — fängt die ausgehende `Request` ab
+  und liest die Datei aus ihrem Multipart-Body zurück (vorher rot: `application/json`).
+- **Lehre:** Die Backend-Tests posten echtes Multipart, die Web-Tests prüften die Oberfläche mit
+  gemockten Hooks — **die eine Zeile dazwischen, die die Anfrage baut, lief in keinem Test.** Ein
+  Upload ist erst geprüft, wenn eine Datei durch den echten Client gegangen ist.
+
+## 2026-10-03 — Die englische Oberfläche war fertig und unerreichbar  (Modul: web/i18n, Schwere: niedrig)
+- **Symptom:** README, `CONTRIBUTING.md` und die Root-`CLAUDE.md` sagen „the UI ships in German and
+  English". Die App zeigte immer Deutsch; einen Umschalter gab es nicht.
+- **Ursache:** `activateCatalogs` lud beide Kataloge und aktivierte fest `"de"`. Der englische
+  Katalog war vollständig (Paritätstest) — nur führte kein Weg zu ihm.
+- **Fix:** `lib/locale.ts`: gespeicherte Wahl → Browser-Sprache → Deutsch; Umschalter unter
+  Profil → Sprache; `<html lang>` folgt. Im selben Zug: die Modusnamen des Theme-Umschalters
+  (`theme.system|light|dark`) standen nur im Mitglieder-Katalog, die Betreiber-Konsole zeigte
+  „Design: theme.system" — sie liegen jetzt in `shared.*`.
+- **Regressionstest:** `locale.test.ts`, `language-section.test.tsx`, `ops-theme-toggle.test.tsx`
+  (vorher rot: `Design: theme.system`).
+- **Lehre:** Ein Paritätstest beweist, dass zwei Kataloge gleich **vollständig** sind — nicht, dass
+  einer von ihnen je **angezeigt** wird. Und das Katalog-Gate (`i18n-bundle-split`) sieht nur
+  Schlüssel, die als Literal im Quelltext stehen; ein zur Laufzeit gebauter (`theme.${pref}`)
+  braucht einen eigenen Test.
+
 ## 2026-10-03 — Worker-Kinder starben alle fünf Sekunden  (Modul: worker, Schwere: hoch)
 - **Symptom:** `redis.exceptions.TimeoutError: Timeout reading from redis:6379` aus
   `taskiq_redis/redis_broker.py … brpop`, danach `worker-N is dead. Scheduling reload.` — bei

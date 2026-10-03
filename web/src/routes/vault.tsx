@@ -7,6 +7,7 @@ import { useSession } from "../auth/session";
 import { Button } from "../components/button";
 import { EmptyState, ErrorState, LoadingState } from "../components/states";
 import { i18n } from "../i18n";
+import { ProblemError } from "../lib/problem";
 import {
   decryptItemBody,
   decryptItemName,
@@ -34,7 +35,10 @@ import {
 export function VaultPage() {
   const navigate = useNavigate();
   const { data: session, isLoading: sessionLoading } = useSession();
-  const keys = useVaultKeys();
+  // Children and guests have no vault (Root-CLAUDE.md; the API answers 403). Say so instead of
+  // asking and showing the generic error.
+  const excluded = session?.role === "child" || session?.role === "guest";
+  const keys = useVaultKeys(!!session && !excluded);
   const putKey = usePutKey();
 
   // The unlocked household key — in memory only, never persisted.
@@ -50,6 +54,18 @@ export function VaultPage() {
   }, [sessionLoading, session, navigate]);
 
   if (sessionLoading || !session) return <LoadingState />;
+  if (excluded) {
+    return (
+      <section aria-labelledby="vault-heading" className="max-w-md space-y-4">
+        <h1 id="vault-heading" className="font-display text-2xl">
+          <Trans id="nav.vault" />
+        </h1>
+        <EmptyState>
+          <Trans id="vault.notForChildren" />
+        </EmptyState>
+      </section>
+    );
+  }
   if (keys.isLoading) return <LoadingState />;
   if (keys.isError) return <ErrorState />;
 
@@ -57,7 +73,14 @@ export function VaultPage() {
     (k) => k.kind === "passphrase" && k.member_id === session.user_id,
   );
 
-  // --- First-time setup: no passphrase envelope yet for this member -------------------------
+  const recoveryEnvelope = (keys.data ?? []).find((k) => k.kind === "recovery");
+  // The household's vault exists (its recovery envelope does) but this member has no envelope of
+  // their own yet: they JOIN it — never set it up again. A second setup would generate a new
+  // household key and try to replace the recovery envelope, which costs every other member their
+  // entries and their recovery code (BUGLOG 2026-10-03; the server refuses it with 409 as well).
+  const joinMode = !myPassphrase && !!recoveryEnvelope;
+
+  // --- First-time setup: the household has no vault yet -------------------------------------
   const setup = async () => {
     setError(null);
     if (passphrase.length < 8) {
@@ -68,17 +91,36 @@ export function VaultPage() {
     const code = await generateRecoveryCode();
     const passEnv = await wrapHouseholdKey(key, passphrase);
     const recEnv = await wrapHouseholdKey(key, code);
-    await putKey.mutateAsync({
-      kind: "passphrase",
-      wrapped_key: passEnv.wrapped_key,
-      wrap_meta: passEnv.wrap_meta,
-    });
-    await putKey.mutateAsync({
-      kind: "recovery",
-      wrapped_key: recEnv.wrapped_key,
-      wrap_meta: recEnv.wrap_meta,
-    });
+    // The recovery envelope goes first: it is the write-once claim on "this household's key".
+    // If somebody else got there first (409), nothing of ours has been stored yet and the page
+    // falls into join mode — the other order would leave this member with a passphrase envelope
+    // around a key nobody else has.
+    try {
+      await putKey.mutateAsync({
+        kind: "recovery",
+        wrapped_key: recEnv.wrapped_key,
+        wrap_meta: recEnv.wrap_meta,
+      });
+    } catch (err) {
+      const taken = err instanceof ProblemError && err.slug === "vault_already_set_up";
+      setError(taken ? "vault.error.alreadySetUp" : "state.error");
+      if (taken) void keys.refetch();
+      return;
+    }
+    // From here on the vault exists and the code is the only way in — show it whatever happens
+    // to the second request.
     setRecoveryCode(code);
+    try {
+      await putKey.mutateAsync({
+        kind: "passphrase",
+        wrapped_key: passEnv.wrapped_key,
+        wrap_meta: passEnv.wrap_meta,
+      });
+    } catch {
+      // Unlocked with the key in memory, and asked to set the passphrase again (same UI as
+      // after a recovery unlock).
+      setCameFromRecovery(true);
+    }
     setHouseholdKey(key);
     setPassphrase("");
   };
@@ -100,8 +142,10 @@ export function VaultPage() {
     }
   };
 
-  // --- Recovery unlock: open the recovery envelope with the recovery code -------------------
-  const recoveryEnvelope = (keys.data ?? []).find((k) => k.kind === "recovery");
+  // --- Recovery unlock / join: open the recovery envelope with the recovery code -------------
+  // Joining is the same act as recovering: the code unwraps the existing household key, and the
+  // unlocked vault then asks for an own passphrase (ChangePassphrase wraps the SAME key under
+  // it). No new household key, and the recovery envelope is never written.
   const recoveryUnlock = async () => {
     setError(null);
     if (!recoveryEnvelope) return;
@@ -119,6 +163,9 @@ export function VaultPage() {
     }
   };
 
+  // The input takes the household's recovery code (joining, or "forgot my passphrase").
+  const codeEntry = joinMode || recoveryMode;
+
   if (householdKey === null) {
     return (
       <section aria-labelledby="vault-heading" className="max-w-md space-y-4">
@@ -128,11 +175,13 @@ export function VaultPage() {
         <p className="text-sm text-stein-text">
           <Trans
             id={
-              !myPassphrase
-                ? "vault.setupHint"
-                : recoveryMode
-                  ? "vault.recoveryUnlockHint"
-                  : "vault.unlockHint"
+              joinMode
+                ? "vault.joinHint"
+                : !myPassphrase
+                  ? "vault.setupHint"
+                  : recoveryMode
+                    ? "vault.recoveryUnlockHint"
+                    : "vault.unlockHint"
             }
           />
         </p>
@@ -140,8 +189,8 @@ export function VaultPage() {
           type="password"
           value={passphrase}
           onChange={(e) => setPassphrase(e.target.value)}
-          placeholder={i18n._(recoveryMode ? "vault.recoveryCode" : "vault.passphrase")}
-          aria-label={i18n._(recoveryMode ? "vault.recoveryCode" : "vault.passphrase")}
+          placeholder={i18n._(codeEntry ? "vault.recoveryCode" : "vault.passphrase")}
+          aria-label={i18n._(codeEntry ? "vault.recoveryCode" : "vault.passphrase")}
           className="w-full rounded border border-stein/40 bg-kalk dark:bg-nacht-2 px-2 py-1 text-tinte dark:text-kalk"
         />
         {error ? (
@@ -151,11 +200,11 @@ export function VaultPage() {
         ) : null}
         <Button
           onClick={() =>
-            void (!myPassphrase ? setup() : recoveryMode ? recoveryUnlock() : unlock())
+            void (codeEntry ? recoveryUnlock() : !myPassphrase ? setup() : unlock())
           }
           disabled={!passphrase || putKey.isPending}
         >
-          <Trans id={myPassphrase ? "vault.unlock" : "vault.setup"} />
+          <Trans id={joinMode ? "vault.join" : myPassphrase ? "vault.unlock" : "vault.setup"} />
         </Button>
         {myPassphrase && recoveryEnvelope ? (
           <button

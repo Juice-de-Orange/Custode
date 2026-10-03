@@ -36,6 +36,7 @@ const SLUG_MESSAGES: Record<string, string> = {
   precondition_failed: "calendar.subs.err.conflict",
   external_kind_unsupported: "calendar.err.externalCreateUnsupported",
   external_tzid_unsupported: "calendar.err.externalCreateUnsupported",
+  invalid_range: "calendar.err.endBeforeStart",
   not_found: "calendar.err.notSynced",
 };
 

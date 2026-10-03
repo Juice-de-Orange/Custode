@@ -2,7 +2,7 @@ import { I18nProvider } from "@lingui/react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { expect, test, vi } from "vitest";
 
-import { VerificationBanner } from "../components/verification-banner";
+import { needsEmailVerification, VerificationBanner } from "../components/verification-banner";
 import { i18n } from "../i18n";
 
 type Props = Parameters<typeof VerificationBanner>[0];
@@ -28,4 +28,11 @@ test("confirms after a resend (no button)", () => {
   renderBanner({ sent: true });
   expect(screen.getByText("Bestätigungs-Mail gesendet.")).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Bestätigungs-Mail erneut senden" })).toBeNull();
+});
+
+test("only an account that has an e-mail address is asked to confirm it", () => {
+  expect(needsEmailVerification({ email: "a@example.org", email_verified: false })).toBe(true);
+  expect(needsEmailVerification({ email: "a@example.org", email_verified: true })).toBe(false);
+  // A child account signs in with username + PIN and has no address to confirm.
+  expect(needsEmailVerification({ email: null, email_verified: false })).toBe(false);
 });

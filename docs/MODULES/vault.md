@@ -35,13 +35,17 @@ kein Klartext, keine PII, **auch nicht der Eintrags-Name**. Folge: keine servers
 
 ## Zugriff & Schreibpfad
 - **Kinder & Gäste ausgeschlossen** (Root-CLAUDE.md): member/admin only (`require_role`).
-- Items: **online-first PATCH + If-Match** (ETag), Soft-Delete. Envelopes: idempotenter PUT-Upsert.
+- Items: **online-first PATCH + If-Match** (ETag), Soft-Delete. Envelopes: PUT — der
+  **Passphrase-Umschlag** ist ein idempotenter Upsert (je Mitglied/Version), der
+  **Recovery-Umschlag ist write-once** (409 `vault_already_set_up`, ADR-0067-Nachtrag).
 - `GET /items` liefert eine Summary **ohne** `ciphertext` (das Geheimnis wird erst beim Einzel-GET
   ausgeliefert) — minimiert die Exposition beim Listen-Laden.
 
 ## Schnittstellen (HTTP, `/v1/vault`)
 - `GET /keys` (member/admin) → eigene Passphrase-Umschläge + Haushalts-Recovery-Umschlag.
-- `PUT /keys` (member/admin, CSRF) → Upsert eines Umschlags (idempotent je member/kind/version).
+- `PUT /keys` (member/admin, CSRF) → Passphrase-Umschlag: Upsert (idempotent je member/version).
+  Recovery-Umschlag: nur anlegen; existiert einer, **409 `vault_already_set_up`** (ein
+  byte-identischer Wiederholungsaufruf bleibt 200).
 - `GET /items` → `list[VaultItemSummary]` (ohne ciphertext) · `POST /items` (CSRF, 201, +ETag) ·
   `GET /items/{id}` (+ETag, mit ciphertext) · `PATCH /items/{id}` (If-Match, CSRF) ·
   `DELETE /items/{id}` (CSRF, 204, Soft-Delete).
@@ -58,8 +62,12 @@ kein Klartext, keine PII, **auch nicht der Eintrags-Name**. Folge: keine servers
 
 ## Tests
 - `test_vault_rls.py` — RLS-Negativ + WITH CHECK für **beide** Tabellen (Testcontainers).
-- `test_vault_http.py` — Umschlag-Round-Trip (passphrase + recovery, idempotent); Item-CRUD mit
+- `test_vault_http.py` — Umschlag-Round-Trip (passphrase + recovery, idempotent); **Recovery-Umschlag
+  write-once** (zweites Mitglied → 409, auch mit höherer `key_version`; Original unverändert;
+  Gegenprobe: identischer Replay 200, eigener Passphrase-Umschlag 200); Item-CRUD mit
   ETag/If-Match (stale→412); Summary verbirgt `ciphertext`; **Kinder→403**; Haushalts-Isolation.
+- Web: `vault-join.test.tsx` — Beitritt mit echter Krypto (dasselbe `K_h`, Recovery-Umschlag
+  unberührt), Einrichten in der Reihenfolge recovery → passphrase, verlorenes Rennen, Kinder-Zustand.
 
 ## Web-Krypto (S14a, ADR-0067)
 `web/src/vault/crypto.ts` (libsodium-wasm, **dynamisch importiert** → Lazy-Chunk): Argon2id
@@ -76,6 +84,16 @@ Passphrase- & Recovery-Umschlag speichern, Recovery-Code **einmalig** angezeigt)
 auflisten (Namen je Eintrag entschlüsselt), aufklappen (Geheimnis-Body on-demand entschlüsselt),
 löschen. Der Haushaltsschlüssel lebt **nur im Speicher** (Reload → erneut entsperren). libsodium-wasm
 ist ein **separater Lazy-Chunk** (nur auf der Vault-Route geladen). Nav-Link, i18n DE/EN.
+
+## Beitritt weiterer Mitglieder (ADR-0067-Nachtrag 2026-10-03)
+Hat der Haushalt bereits einen Recovery-Umschlag und das Mitglied noch keinen eigenen
+Passphrase-Umschlag, zeigt `/vault` **„Tresor beitreten"** statt „Tresor einrichten": das Mitglied
+gibt den **Wiederherstellungs-Code des Haushalts** ein, der Client entpackt `K_h` aus dem
+Recovery-Umschlag und packt **dasselbe** `K_h` unter die eigene Passphrase. Es entsteht kein neues
+`K_h`, der Recovery-Umschlag wird nie geschrieben. Das ist eine Zwischenlösung im bestehenden
+Umschlagmodell; der Public-Key-Beitritt aus KONZEPT §5.11 braucht die asymmetrische
+Pro-Mitglied-Identität (siehe „Offene Punkte"). Kinder und Gäste sehen auf `/vault` „nicht
+verfügbar" statt eines Fehlers; die Schlüssel werden für sie gar nicht abgefragt.
 
 ## Recovery + Passphrase-Wechsel (S15a)
 „Passphrase vergessen?" entsperrt den Tresor clientseitig über den **Recovery-Umschlag** (Recovery-Code
@@ -95,5 +113,7 @@ verschlüsselt und per `PATCH /v1/vault/items/{id}` + **If-Match** (ETag des gel
 gespeichert (412 bei zwischenzeitlicher Änderung). Damit ist die Item-CRUD vollständig.
 
 ## Offene Punkte (spätere Slices)
+- **Public-Key-Beitritt und Recovery-Code pro Mitglied** (KONZEPT §5.11) — bis dahin ist der
+  Recovery-Code ein haushaltsweit geteiltes, nicht wechselbares Geheimnis (ADR-0067-Nachtrag).
 - **Schlüssel-Rotation** bei Mitglied-Austritt (neue `key_version`, Re-Wrap/Re-Encrypt — braucht
   asymmetrische Pro-Mitglied-Identität, eigener ADR).

@@ -15,9 +15,16 @@ history (June–September 2026, German) is not part of the public repository.
 - Source-code link in the app footer (AGPL §13), English `README.md` and `docs/ARCHITECTURE.md`,
   contributor documentation, hardened CI, CodeQL, Dependabot.
 - A lived-in demo household for `make seed-demo`.
+- The English interface is reachable: the UI follows the browser language (German as fallback)
+  and can be pinned per browser under Profile → Language.
+- The account page shows admins the sign-in link for child accounts, with a copy button.
 
 ### Changed
 
+- A child account is no longer asked to confirm an e-mail address it does not have, and `/vault`
+  tells child and guest accounts that the vault is not available to them.
+- README: what the functional checks covered and what they did not; the backup section names the
+  one visible effect of not restoring Redis.
 - Production deployment files are generic templates (`docker-compose.prod.yml`,
   `.env.prod.example`, `infra/postgres/init.prod.sh`, `infra/caddy/Caddyfile`); the deploy job
   is not part of the public CI.
@@ -25,6 +32,16 @@ history (June–September 2026, German) is not part of the public repository.
 
 ### Fixed
 
+- Vault: a household's second member can no longer destroy the first member's vault. The
+  household-wide recovery envelope is write-once on the server (`409 vault_already_set_up`), and
+  a member without an envelope of their own now **joins** the existing vault with the household's
+  recovery code and their own passphrase instead of being offered "set up" (ADR-0067 addendum).
+- Uploads from the PWA (guide attachments, recipe photos) are sent as multipart; they went out as
+  JSON and always failed with 422.
+- The operator console's theme button named its mode with a raw message id.
+- Calendar: an end before the start is reported at the end field instead of the generic error.
+- `create_operator` refuses an argument that is not an e-mail address.
+- `make install` uses `npm ci`, which leaves `web/package-lock.json` untouched.
 - Worker: taskiq worker children no longer die every five seconds on an idle queue (redis-py 8
   default `socket_timeout` against the blocking `BRPOP`).
 - Passkeys: registration now requires a discoverable credential, matching the usernameless login.
