@@ -219,3 +219,40 @@ def _assignments(path: Path) -> list[tuple[int, str, str]]:
         name, _, value = stripped.partition("=")
         out.append((number, name.strip(), value.strip()))
     return out
+
+
+CADDYFILE = REPO_ROOT / "infra" / "caddy" / "Caddyfile"
+
+
+def _caddy_site_addresses() -> list[str]:
+    """Every address of every top-level site block (snippets ``(name) {`` are not sites)."""
+    addresses: list[str] = []
+    for line in CADDYFILE.read_text(encoding="utf-8").splitlines():
+        if not line.endswith("{") or line[0] in " \t#(":
+            continue
+        addresses += [part.strip() for part in line.removesuffix("{").split(",")]
+    return addresses
+
+
+def test_caddy_serves_plain_http_only() -> None:
+    """A bare host name as site address switches on Caddy's automatic HTTPS for it.
+
+    Caddy sits behind the operator's TLS-terminating proxy and listens on :80 only. A site
+    address without ``http://`` answered every request with a 308 to ``https://`` (a redirect
+    loop behind that proxy) and ordered ACME certificates for the name — which is how the
+    operator console's block shipped (BUGLOG 2026-10-03).
+    """
+    addresses = _caddy_site_addresses()
+    assert len(addresses) >= 2, f"parser found too few site blocks: {addresses}"
+    offenders = [a for a in addresses if a != ":80" and not a.startswith("http://")]
+    assert not offenders, (
+        f"infra/caddy/Caddyfile: {offenders} would get automatic HTTPS — "
+        "prefix the address with http:// (TLS is terminated upstream)."
+    )
+
+
+def test_caddy_ops_host_reaches_the_web_container() -> None:
+    """``{$OPS_HOST}`` in the Caddyfile is read from the web container's environment — a
+    variable that is only in ``.env`` never arrives there and the default would win silently."""
+    assert "{$OPS_HOST:" in CADDYFILE.read_text(encoding="utf-8")
+    assert "OPS_HOST" in _env_keys(_load(PROD), "web")

@@ -14,7 +14,11 @@ from urllib.parse import urlparse
 
 import webauthn
 from fastapi import Request
-from webauthn.helpers.structs import PublicKeyCredentialDescriptor
+from webauthn.helpers.structs import (
+    AuthenticatorSelectionCriteria,
+    PublicKeyCredentialDescriptor,
+    ResidentKeyRequirement,
+)
 
 from app.kernel.redis import get_redis
 
@@ -73,12 +77,22 @@ class RegisteredCredential:
 def registration_options(
     *, rp_id: str, rp_name: str, user_id: bytes, user_name: str, exclude_ids: list[str]
 ) -> tuple[str, bytes]:
-    """Build registration (attestation) options; returns (options_json, challenge)."""
+    """Build registration (attestation) options; returns (options_json, challenge).
+
+    The credential must be **discoverable** (resident key ``required``): both logins are
+    usernameless (``authentication_options`` with empty ``allow_ids``), and an authenticator can
+    only answer that with a credential it stored itself. ``preferred`` would let a key without
+    free resident-key storage register a server-side credential that verifies fine here and
+    can then never sign in — ``required`` makes that fail at registration, where the user sees it.
+    """
     options = webauthn.generate_registration_options(
         rp_id=rp_id,
         rp_name=rp_name,
         user_name=user_name,
         user_id=user_id,
+        authenticator_selection=AuthenticatorSelectionCriteria(
+            resident_key=ResidentKeyRequirement.REQUIRED
+        ),
         exclude_credentials=[PublicKeyCredentialDescriptor(id=_unb64url(c)) for c in exclude_ids],
     )
     return webauthn.options_to_json(options), options.challenge

@@ -43,11 +43,6 @@ class Settings(BaseSettings):
     database_url_ops_actions: str | None = None
     redis_url: str = "redis://localhost:6379/0"
 
-    # Object storage (MinIO in dev)
-    s3_endpoint_url: str | None = None
-    s3_access_key: str | None = None
-    s3_secret_key: str | None = None
-    s3_bucket: str = "custode"
     # Local filesystem blob storage (recipe photos); None -> uploads disabled (Null-Adapter).
     storage_dir: str | None = None
 
@@ -119,7 +114,7 @@ class Settings(BaseSettings):
     # Null adapter (no forwarding; in-app feedback + the operator inbox work regardless). When both
     # a token and a repo are set, a submission is best-effort forwarded to GitHub Issues. Fixed host
     # (no user input -> no SSRF); a forwarding failure never breaks submission. Secrets via env,
-    # never in repo (like the SMTP/S3 secrets above).
+    # never in repo (like the SMTP secrets above).
     github_token: str | None = None  # CUSTODE_GITHUB_TOKEN — fine-grained PAT, Issues: read/write
     github_repo: str | None = None  # CUSTODE_GITHUB_REPO — "owner/repo"
     github_api_url: str = "https://api.github.com"

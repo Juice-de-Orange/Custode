@@ -1,0 +1,13 @@
+# A host-side `uv sync` (make install) creates backend/.venv; `COPY . .` would overwrite the
+# image's own venv with it and every entrypoint would point at a Python that is not there.
+.venv
+__pycache__
+*.py[cod]
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.import_linter_cache
+.coverage
+htmlcov
+.env
+.env.*

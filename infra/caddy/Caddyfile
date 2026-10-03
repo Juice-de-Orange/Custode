@@ -54,7 +54,11 @@
 # token cannot ride an ambient session and vice-versa. The host is matched explicitly; the
 # subdomain's DNS/tunnel route is an infra step (documented, not in-repo). The operator's
 # proxy or tunnel must point ops.<domain> at this block.
-ops.localhost, ops.example.com {
+# The host name comes from OPS_HOST (.env → the web service's environment). The explicit
+# `http://` is load-bearing: a bare host name makes Caddy switch on automatic HTTPS for it —
+# a 308 to https:// (a redirect loop behind the TLS-terminating proxy) plus ACME orders for the
+# name — although TLS is terminated upstream, as the header of this file says.
+http://{$OPS_HOST:ops.localhost} {
     encode zstd gzip
 
     @ops path /ops/* /healthz /readyz

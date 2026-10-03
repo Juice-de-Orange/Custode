@@ -11,7 +11,7 @@ Lokale/produktive Infrastruktur-Bausteine.
   Image gemountet. Im Dev nicht genutzt (Web läuft via `npm run dev`, proxyt `/v1`).
 
 Der Dev-Stack wird über `docker-compose.dev.yml` (Repo-Wurzel) gestartet:
-`make dev` → api, worker, postgres:18, redis, minio, mailpit.
+`make dev` → api, worker, postgres:18, redis, mailpit, radicale.
 - `postgres/init.prod.sh` — Bootstrap der Prod-DB-Rollen beim **ersten** Container-Init
   (`custode_app`, `custode_maint`, `ops_readonly`, `ops_actions`; Passwoerter aus der Umgebung).
   Laeuft nur bei leerem Datenverzeichnis — auf einem bestehenden Stack die Rollen von Hand

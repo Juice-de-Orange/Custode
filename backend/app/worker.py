@@ -51,7 +51,20 @@ from app.wearable_factory import build_wearable_cloud, build_wearable_oauth
 
 _settings = get_settings()
 require_runtime_settings(_settings)  # dispatcher + reaper need the maint role (BUGLOG 2026-06-17)
-broker = ListQueueBroker(url=_settings.redis_url)
+
+
+def build_broker(redis_url: str) -> ListQueueBroker:
+    """The taskiq broker for ``redis_url``.
+
+    ``socket_timeout=None`` is load-bearing: the worker's listen loop sits in ``BRPOP … 0``, a read
+    that by design never returns while the queue is idle. redis-py 8 defaults ``socket_timeout`` to
+    5 s (7.x: none), so every idle worker child died with ``TimeoutError`` after five seconds and
+    was respawned — forever, with the container still "healthy" (BUGLOG 2026-10-03). Connecting
+    stays bounded by redis-py's separate ``socket_connect_timeout`` default."""
+    return ListQueueBroker(url=redis_url, socket_timeout=None)
+
+
+broker = build_broker(_settings.redis_url)
 scheduler = TaskiqScheduler(broker, sources=[LabelScheduleSource(broker)])
 
 _log = get_logger("worker.outbox")

@@ -64,7 +64,7 @@ flowchart LR
   api --> redis[("Redis")]
   redis --> worker["taskiq worker + scheduler<br/>outbox · DLQ · purge · digest"]
   worker --> pg
-  api --> s3[("S3 / MinIO<br/>photos, attachments")]
+  api --> blob[("Blob storage<br/>filesystem volume · photos, attachments")]
   worker -. adapters .-> ext["CalDAV · SMTP · Oura · LLM · Open-Meteo"]
 ```
 
@@ -78,23 +78,96 @@ generated TypeScript client and zod schemas (drift gate + `oasdiff` on PRs). Det
 
 ## Quick start
 
-Requirements: Python 3.12+, [uv](https://docs.astral.sh/uv/), Node 22, GNU Make, Docker with
-Compose v2.
+Requirements: [uv](https://docs.astral.sh/uv/), Node 22, GNU Make, Docker with Compose v2. No
+system Python is needed: uv installs the interpreter pinned in `backend/.python-version` (3.13,
+the same version the container image runs; `requires-python` is `>=3.12`, but 3.13 is what CI
+and the image exercise).
 
 ```bash
 git clone https://github.com/Juice-de-Orange/Custode.git
 cd Custode
 cp .env.example .env     # dev-safe defaults
-make dev                 # api, worker, scheduler, postgres 18, redis, minio, mailpit, radicale
+make dev                 # api, worker, scheduler, postgres 18, redis, mailpit, radicale
 make migrate             # alembic upgrade head
 make seed-demo           # an invented, lived-in demo household (dev only)
+make install             # uv sync (backend) + npm install (web)
 make web                 # Vite dev server on http://localhost:5173 (proxies /v1 to the API)
 ```
 
 Log in with the demo account printed by `make seed-demo`. Mail lands in mailpit
-(http://localhost:8025). For a production deployment see `docker-compose.prod.yml`,
-`.env.prod.example`, `infra/caddy/Caddyfile` and ADR-0020 — the stack expects a TLS-terminating
-reverse proxy or tunnel in front of Caddy and publishes no database ports.
+(http://localhost:8025). The dev stack is for a developer machine only — it publishes its
+database ports and uses fixed passwords.
+
+## Self-hosting
+
+The production stack is `docker-compose.prod.yml`: postgres, redis, api, worker, scheduler and
+`web` (Caddy serving the built PWA and proxying `/v1` to the api). It expects a TLS-terminating
+reverse proxy or tunnel in front and publishes no database ports. Background in ADR-0020 and
+ADR-0024 (German).
+
+**Bring-up.** On the host, in the cloned repository:
+
+```bash
+cp .env.prod.example .env    # then edit: every change-me, CUSTODE_PUBLIC_BASE_URL, OPS_HOST
+openssl rand -hex 24         # one value per *_PASSWORD (no URL-special characters)
+docker compose -f docker-compose.prod.yml build
+docker compose -f docker-compose.prod.yml run --rm --no-deps api \
+    python -c "from app.kernel.crypto import generate_key; print(generate_key())"   # → CUSTODE_CRYPTO_KEY
+docker compose -f docker-compose.prod.yml up -d postgres redis
+docker compose -f docker-compose.prod.yml run --rm api alembic upgrade head
+docker compose -f docker-compose.prod.yml up -d
+```
+
+The database roles are created from the `.env` passwords on the **first** start of an empty
+`pgdata` volume only. Migrations run before the app starts; an upgrade is the same sequence
+after `git pull` (`build` → `run --rm api alembic upgrade head` → `up -d`).
+
+**Attaching your proxy.** `web` deliberately publishes no host port. Either put your reverse
+proxy or tunnel container on the stack's network (`custode_default`) and point it at
+`http://web:80`, or publish the port to the host's loopback with a Compose override
+(`services: {web: {ports: ["127.0.0.1:8081:80"]}}`) and proxy to that. Caddy speaks plain HTTP
+on :80 for both site blocks. The operator console is a second site on the host name in
+`OPS_HOST` (default `ops.localhost`), so the proxy must forward the original `Host` header. The
+api's own port (`127.0.0.1:8080`) bypasses Caddy and is meant for health checks.
+
+**First accounts.** Members register in the app; the first one creates the household. The
+operator console has no sign-up — create the first operator on the host:
+
+```bash
+docker compose -f docker-compose.prod.yml run --rm api \
+    python -m app.scripts.create_operator you@example.org
+```
+
+It prints a generated password and the TOTP secret exactly once (TOTP is mandatory for the
+console); a re-run for the same address changes nothing.
+
+**Without SMTP.** Leave `CUSTODE_SMTP_HOST` empty (the template ships a placeholder host —
+clear it) and the app runs with a null mail adapter: registration and login work, accounts stay
+"e-mail not verified" (nothing in the backend is gated on that flag), and **no mail is sent** — no
+verification mail, no weekly digest and no password-reset mail. "Forgot password" still answers
+204, so without SMTP a forgotten password cannot be reset by the user.
+
+**Backup and restore.** State lives in two places: the `pgdata` volume (everything except
+files) and the `storagedata` volume (recipe photos, guide attachments). `redisdata` holds only
+the job queue and short-lived state (access tokens, WebAuthn challenges) and needs no backup. Keep the `.env` with the
+backups — above all `CUSTODE_CRYPTO_KEY`: without the same key, stored CalDAV passwords and
+wearable tokens are unreadable and must be entered again.
+
+```bash
+# backup
+docker compose -f docker-compose.prod.yml exec -T postgres pg_dump -U custode -Fc custode > custode.dump
+docker compose -f docker-compose.prod.yml run --rm --no-deps -T api tar czf - -C /data/storage . > storage.tgz
+
+# restore into empty volumes (new host, or after `down -v`), with the saved .env in place
+docker compose -f docker-compose.prod.yml up -d --wait postgres redis   # first init creates the roles
+docker compose -f docker-compose.prod.yml exec -T postgres pg_restore -U custode -d custode < custode.dump
+docker compose -f docker-compose.prod.yml run --rm --no-deps -T api tar xzf - -C /data/storage < storage.tgz
+docker compose -f docker-compose.prod.yml run --rm api alembic upgrade head
+docker compose -f docker-compose.prod.yml up -d
+```
+
+The dump carries no roles — they come from the init script, which is why the restore starts
+postgres on an empty volume first.
 
 ## Development
 
@@ -113,7 +186,7 @@ hard way. See [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## Tech stack
 
-Python 3.12 · FastAPI · SQLAlchemy 2 (async) · Alembic · Pydantic v2 · PostgreSQL 18 (RLS) · Redis ·
+Python 3.13 · FastAPI · SQLAlchemy 2 (async) · Alembic · Pydantic v2 · PostgreSQL 18 (RLS) · Redis ·
 taskiq · uv · ruff · mypy strict · import-linter · pytest + Testcontainers — React 19 · TypeScript
 strict · Vite 6 · TanStack Router + Query · Dexie · Lingui · Tailwind 4 · vitest · axe · Lighthouse
 CI — Docker Compose · Caddy · gitleaks · trivy.
@@ -122,7 +195,8 @@ CI — Docker Compose · Caddy · gitleaks · trivy.
 
 Custode is a self-hostable product; every external service is optional and brought by the operator:
 an SMTP account, an Oura OAuth application (for wearables), an Open-Meteo plan (the free API is for
-non-commercial use), an S3-compatible store, and an LLM endpoint for quick-capture.
+non-commercial use), and an LLM endpoint for quick-capture. Uploaded files are stored on a local
+volume ([ADR-0033](docs/adr/0033-blob-storage-photos.md)); no object store is needed.
 
 ## Built with
 

@@ -8,7 +8,7 @@
 #     niemals im Repo. DB-Rollen-Passwoerter werden beim ersten Init gesetzt.
 #   * RAM-Limits, damit Custode die uebrigen Dienste auf dem Produktionsserver nie verdraengt.
 #   * restart: unless-stopped fuer Neustart-Resilienz nach Reboot/Crash.
-#   * Kein MinIO/Mailpit — die App bootet ohne (S3/SMTP sind optional, Phase 1).
+#   * Kein Mailpit — die App bootet ohne (SMTP ist optional, Null-Adapter).
 
 name: custode
 
@@ -231,6 +231,10 @@ services:
     # default Caddyfile with the reverse-proxy config. No host port: the operator's
     # reverse proxy/tunnel reaches `web` on :80 in the Compose network (ADR-0020/0024);
     # TLS is terminated there.
+    environment:
+      # Host name of the operator console's site block in the Caddyfile (plain HTTP, like the
+      # member block). The operator's proxy/tunnel must forward this Host header unchanged.
+      OPS_HOST: ${OPS_HOST:-ops.localhost}
     volumes:
       - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
     depends_on:
