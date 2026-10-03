@@ -5,7 +5,7 @@ COMPOSE := docker compose -f docker-compose.dev.yml
 
 help:
 	@echo Custode make targets:
-	@echo   make dev          - bring up dev stack (api worker scheduler postgres redis minio mailpit radicale)
+	@echo   make dev          - bring up dev stack (api worker scheduler postgres redis mailpit radicale)
 	@echo   make down         - stop dev stack
 	@echo   make logs         - follow dev stack logs
 	@echo   make migrate      - alembic upgrade head (in api container, owner role)

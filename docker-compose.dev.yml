@@ -29,18 +29,6 @@ services:
       timeout: 3s
       retries: 10
 
-  minio:
-    image: minio/minio:latest
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: custode
-      MINIO_ROOT_PASSWORD: custode123
-    ports:
-      - "9000:9000"
-      - "9001:9001"
-    volumes:
-      - miniodata:/data
-
   mailpit:
     image: axllent/mailpit:latest
     ports:
@@ -70,9 +58,6 @@ services:
       CUSTODE_DATABASE_URL_ADMIN: postgresql+asyncpg://custode:custode@postgres:5432/custode
       CUSTODE_DATABASE_URL_MAINT: postgresql+asyncpg://custode_maint:custode_maint@postgres:5432/custode
       CUSTODE_REDIS_URL: redis://redis:6379/0
-      CUSTODE_S3_ENDPOINT_URL: http://minio:9000
-      CUSTODE_S3_ACCESS_KEY: custode
-      CUSTODE_S3_SECRET_KEY: custode123
       CUSTODE_SMTP_HOST: mailpit
       CUSTODE_SMTP_PORT: "1025"
       # Dev: der SSRF-Guard wuerde das interne Compose-Netz (radicale:5232) blocken.
@@ -138,5 +123,4 @@ services:
 
 volumes:
   pgdata:
-  miniodata:
   radicaledata:

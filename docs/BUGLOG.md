@@ -17,6 +17,54 @@ Eintragsschema:
 
 ---
 
+## 2026-10-03 — Worker-Kinder starben alle fünf Sekunden  (Modul: worker, Schwere: hoch)
+- **Symptom:** `redis.exceptions.TimeoutError: Timeout reading from redis:6379` aus
+  `taskiq_redis/redis_broker.py … brpop`, danach `worker-N is dead. Scheduling reload.` — bei
+  leerer Queue alle ~5 s, in dev und prod (14 Neustarts in 60 s gemessen). Der Container blieb
+  „healthy" (der Healthcheck pingt nur Redis), und die Outbox lief zwischen zwei Toden weiter:
+  nichts sah kaputt aus. Ein Job, der länger als das Fenster lief, wäre mitgestorben.
+- **Ursache:** redis-py 8 setzt `socket_timeout` standardmäßig auf 5 s (7.x: kein Timeout); das
+  Update kam mit einem Sammel-Bump. `ListQueueBroker.listen` wartet in `BRPOP … 0` — ein Lesen,
+  das bei leerer Queue absichtlich nie zurückkehrt. taskiq-redis fängt dort nur
+  `ConnectionError`; der `TimeoutError` beendet den Listener und damit den Prozess.
+- **Fix:** `build_broker()` in `app/worker.py` baut den Broker mit `socket_timeout=None` (die
+  Kwargs reicht taskiq-redis an den Connection-Pool durch). Der Verbindungsaufbau bleibt über
+  `socket_connect_timeout` begrenzt.
+- **Regressionstest:** `tests/test_worker_broker_idle.py` — lauscht gegen ein echtes Redis länger
+  als redis-pys Default und verlangt danach die Zustellung einer Nachricht (vorher rot mit
+  `TimeoutError`), plus die Prüfung, dass der Modul-Broker die Einstellung trägt.
+- **Lehre:** **Ein Dependency-Bump kann einen Default drehen, den kein Test je berührt hat.** Die
+  Suite prüfte `drain_outbox` direkt und nie den Broker im Leerlauf. Und wieder: ein Healthcheck,
+  der nur die Abhängigkeit pingt, sagt nichts über den Prozess, den er bewachen soll.
+
+## 2026-10-03 — Ops-Site-Block schaltete Auto-HTTPS ein  (Modul: infra/caddy, Schwere: mittel)
+- **Symptom:** Jede Anfrage mit `Host: ops.<domain>` bekam `308 → https://…` — hinter dem
+  TLS-terminierenden Proxy eine Umleitungsschleife — und Caddy bestellte ACME-Zertifikate für
+  den Platzhalter-Host.
+- **Ursache:** Die Site-Adresse war ein nackter Hostname (`ops.localhost, ops.example.com {`).
+  Für Caddy heißt das „HTTPS automatisch"; der Kopf derselben Datei sagt „plain HTTP auf :80".
+- **Fix:** `http://{$OPS_HOST:ops.localhost} {`; `OPS_HOST` steht in `.env.prod.example` und im
+  `environment` des `web`-Service.
+- **Regressionstest:** `test_compose_env.py::test_caddy_serves_plain_http_only` und
+  `::test_caddy_ops_host_reaches_the_web_container`.
+- **Lehre:** Der Member-Block (`:80`) wurde bei jedem Deploy benutzt, der Ops-Block nie durch
+  denselben Weg geprüft. Eine Datei, die zwei Dinge gleich behandeln soll, braucht eine Prüfung,
+  die über beide läuft.
+
+## 2026-10-03 — Passkey registrierbar, aber nicht zum Anmelden brauchbar  (Modul: accounts/backoffice, Schwere: mittel)
+- **Symptom:** Ein Authenticator ohne Resident-Key-Anforderung (z. B. ein Sicherheitsschlüssel)
+  registrierte erfolgreich; die Anmeldung endete im Browser mit `NotAllowedError`.
+- **Ursache:** Die Anmeldung ist benutzernamenlos (`allowCredentials: []`) — das kann ein
+  Authenticator nur mit einem *discoverable* Credential beantworten. Die Registrierung verlangte
+  keines (`authenticatorSelection` fehlte), also legten Authenticatoren ein serverseitiges an.
+- **Fix:** `registration_options` verlangt `residentKey: "required"`. `preferred` hätte den
+  Fehler nur seltener gemacht: ein Schlüssel ohne freien Speicher hätte weiter ein Credential
+  registriert, das nie anmelden kann.
+- **Regressionstest:** `tests/test_webauthn_options.py`.
+- **Lehre:** Der Test-Authenticator (`soft_webauthn`) findet sein Credential immer — er kennt
+  den Unterschied nicht. Dieselbe Klasse wie 2026-08-03: ein Helfer, der den Produktionsfall
+  nicht erzeugen kann.
+
 ## 2026-08-03 — Der stille 401-Replay heilte nur Lesezugriffe  (Modul: web/auth, Schwere: mittel)
 - **Symptom:** Die erste **Schreib**-Aktion nach einer Pause schlug sichtbar fehl und funktionierte
   beim zweiten Versuch — bei jedem Ablauf des 15-Minuten-Access-Tokens, also mehrmals täglich.

@@ -23,6 +23,18 @@ history (June–September 2026, German) is not part of the public repository.
   is not part of the public CI.
 - Problem-type URIs point at the error catalogue in this repository.
 
+### Fixed
+
+- Worker: taskiq worker children no longer die every five seconds on an idle queue (redis-py 8
+  default `socket_timeout` against the blocking `BRPOP`).
+- Passkeys: registration now requires a discoverable credential, matching the usernameless login.
+- Caddy: the operator-console site block is plain HTTP on the host name in `OPS_HOST` (no
+  automatic HTTPS behind the TLS-terminating proxy).
+- Dev stack: removed the unused MinIO service (its `latest` image is gone from Docker Hub) and
+  the unused `CUSTODE_S3_*` settings; `backend/.dockerignore` keeps a host `.venv` out of the image.
+- README: the quick start includes `make install`; new "Self-hosting" section (bring-up, proxy,
+  first operator, running without SMTP, backup and restore).
+
 ### Known limitations
 
 - Phase 11 (hardening and legal) is in progress; open items are tracked as issues once fixed.
