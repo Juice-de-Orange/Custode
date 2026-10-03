@@ -66,6 +66,11 @@ services:
       # testbar sind. Klartext wie die uebrigen Dev-Credentials in dieser Datei — NIE auf Prod
       # (dort kommt der Wert aus <stack-dir>/.env, siehe .env.prod.example).
       CUSTODE_CRYPTO_KEY: "Y3VzdG9kZS1kZXYtb25seS1rZXktbm90LXNlY3JldCE="  # gitleaks:allow — Dev-Konstante, kein Secret
+      # Blob-Storage wie in Prod (ADR-0033): ohne diesen Wert laeuft der Null-Adapter, und jeder
+      # Upload (Rezeptfoto, Anleitungs-Anhang) scheitert im Dev-Stack.
+      CUSTODE_STORAGE_DIR: /data/storage
+    volumes:
+      - storagedata:/data/storage
     ports:
       - "8000:8000"
     depends_on:
@@ -124,3 +129,4 @@ services:
 volumes:
   pgdata:
   radicaledata:
+  storagedata:
