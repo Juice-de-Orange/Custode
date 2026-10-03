@@ -39,7 +39,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.20.0",
-    "@hey-api/openapi-ts": "^0.64.7",
+    "@hey-api/openapi-ts": "^0.99.0",
     "@lhci/cli": "^0.14.0",
     "@tailwindcss/vite": "^4.0.6",
     "@testing-library/jest-dom": "^6.6.3",
