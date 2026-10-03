@@ -175,7 +175,10 @@ test("first setup claims the recovery envelope before storing the passphrase env
   await waitFor(() => expect(state.puts).toHaveLength(2), { timeout: 30_000 });
   expect(state.puts.map((p) => p.kind)).toEqual(["recovery", "passphrase"]);
   // Both envelopes carry one and the same key; the code shown opens the recovery one.
-  const code = (await screen.findAllByText(/^[A-Z0-9_-]+(-[A-Z0-9_-]+)+$/))[0].textContent ?? "";
+  // The code is shown once, in the RecoveryNotice's <code> element (no regex: CodeQL flagged the
+  // grouped-code pattern as backtracking-prone, and the element is unambiguous).
+  const code = document.querySelector("code")?.textContent?.trim() ?? "";
+  expect(code).toContain("-");
   const [rec, pass] = state.puts;
   const viaCode = await unwrapHouseholdKey(rec.wrapped_key, rec.wrap_meta as unknown as WrapMeta, code);
   const viaPass = await unwrapHouseholdKey(
