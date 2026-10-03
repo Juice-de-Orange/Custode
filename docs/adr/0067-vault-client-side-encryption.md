@@ -67,6 +67,50 @@ Konkret gewählte Primitive (in `web/src/vault/crypto.ts`, libsodium-wasm dynami
   — so entschlüsselt die Liste Titel ohne den Geheimnis-Body zu laden.
 - **Recovery-Code:** base64-abgeleiteter hochentropischer Code (gruppiert), als zweiter Umschlag.
 
+## Nachtrag 2026-10-03 — Beitritt weiterer Mitglieder, Recovery-Umschlag ist write-once
+
+**Anlass (BUGLOG 2026-10-03):** Die Web-UI kannte für ein Mitglied ohne eigenen Umschlag nur
+„Tresor einrichten". Das zweite Mitglied eines Haushalts erzeugte damit ein **neues** `K_h` und
+überschrieb den haushaltsweiten Recovery-Umschlag (`PUT /v1/vault/keys` war ein Upsert): der
+Recovery-Code des ersten Mitglieds galt nicht mehr, seine Einträge waren für das zweite unlesbar.
+Ein Beitritt war nie gebaut worden — weder der aus KONZEPT §5.11 noch ein anderer.
+
+**Entscheidung.**
+1. **Der Recovery-Umschlag ist write-once, serverseitig.** Existiert für den Haushalt ein lebender
+   Recovery-Umschlag, antwortet `PUT /v1/vault/keys` mit `kind=recovery` mit **409
+   `vault_already_set_up`** — für jedes Mitglied, auch für jede andere `key_version` (eine höhere
+   würde den echten Umschlag in `GET /keys` verdecken). Der Server kann nicht prüfen, ob ein
+   zweiter Umschlag dasselbe `K_h` trägt; deshalb erlaubt er das Ersetzen gar nicht. Ein
+   byte-identischer Wiederholungsaufruf bleibt idempotent (200). Passphrase-Umschläge bleiben
+   ersetzbar (Passphrase-Wechsel).
+2. **Beitritt über den Recovery-Code (Zwischenlösung im bestehenden Umschlagmodell).** Ein Mitglied
+   ohne eigenen Umschlag, dessen Haushalt einen Recovery-Umschlag hat, gibt den
+   **Wiederherstellungs-Code des Haushalts** ein. Der Client entpackt damit `K_h` aus dem
+   Recovery-Umschlag und packt **dasselbe** `K_h` unter die eigene Passphrase des Mitglieds
+   (`kind=passphrase`). Kein neues `K_h`, der Recovery-Umschlag wird nicht geschrieben, keine neue
+   Krypto — es ist derselbe Ablauf wie „Passphrase vergessen".
+3. **Reihenfolge beim Einrichten:** erst der Recovery-Umschlag (der write-once-Anspruch), dann der
+   Passphrase-Umschlag. Verliert ein Client das Rennen (409), ist von ihm noch nichts gespeichert.
+
+**Abweichung vom Konzept — bewusst und befristet.** KONZEPT §5.11 sieht für den Beitritt einen
+**Public-Key-Umschlag** vor (ein Mitglied mit Zugriff packt `K_h` für das Schlüsselpaar des neuen
+Mitglieds ein) und einen Recovery-Code **pro Mitglied**. Beides braucht eine asymmetrische
+Pro-Mitglied-Identität, die es nicht gibt — dieselbe Voraussetzung wie die Schlüssel-Rotation
+(„Offene Punkte" in `docs/MODULES/vault.md`). Bis dahin gilt:
+- Der Recovery-Code ist ein **haushaltsweit geteiltes Geheimnis** der erwachsenen Mitglieder und
+  wird außerhalb der App weitergegeben. Er öffnet nichts ohne ein angemeldetes Mitgliedskonto
+  dieses Haushalts (die Umschläge liefert nur `GET /keys`, RLS-gescopt, ohne Kinder/Gäste).
+- Er ist **nicht wechselbar** (write-once, keine Rotation). Wer ihn einmal kannte, behält ihn —
+  das ist dieselbe, im Tresor bereits ausgewiesene Grenze wie beim Austritt (`ExitRotationNotice`).
+- Der Ziel-Zustand bleibt der aus §5.11; er kommt mit der Rotation in einem eigenen ADR und
+  bekommt einen eigenen Schreibpfad für neue `key_version`en.
+
+**Bekannte Restlücke.** Ein Client, der noch die alte Reihenfolge sendet (erst Passphrase-, dann
+Recovery-Umschlag), bekommt für den zweiten Aufruf 409 — hat aber bereits einen Passphrase-Umschlag
+um einen Schlüssel gespeichert, das sonst niemand hat. Fremde Daten gehen dabei nicht verloren; das
+Mitglied heilt den Zustand über „Passphrase vergessen?" mit dem Wiederherstellungs-Code des
+Haushalts. Der Server kann den Fall nicht erkennen (opake Umschläge).
+
 ## Alternativen
 - **Serverseitige Verschlüsselung (KMS):** Server könnte entschlüsseln → verletzt „Server sieht nur
   Ciphertext". Verworfen.

@@ -8,6 +8,7 @@ import uuid
 from datetime import UTC, datetime
 
 from sqlalchemy import or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.kernel.events.emit import emit
@@ -21,17 +22,18 @@ from app.modules.vault.schemas import EnvelopeUpsert, VaultItemCreate, VaultItem
 async def upsert_envelope(
     session: AsyncSession, *, household_id: uuid.UUID, member_id: uuid.UUID, data: EnvelopeUpsert
 ) -> VaultKeyEnvelope:
-    """Store or replace a wrapped household-key envelope. A ``passphrase`` envelope binds to the
-    requesting member; a ``recovery`` envelope is household-wide (``member_id`` NULL). Idempotent
-    per (member, kind, key_version). Emits ``vault.key_changed``."""
-    target_member = member_id if data.kind == "passphrase" else None
+    """Store a wrapped household-key envelope. A ``passphrase`` envelope binds to the requesting
+    member and may be replaced (passphrase change; idempotent per member/key_version). A
+    ``recovery`` envelope is household-wide (``member_id`` NULL) and **write-once**: it is the one
+    copy of the household key every member can fall back on, so a second "setup" must never
+    replace it (409 ``vault_already_set_up``). Emits ``vault.key_changed``."""
+    if data.kind == "recovery":
+        return await _create_recovery_envelope(session, household_id=household_id, data=data)
     existing = await session.scalar(
         select(VaultKeyEnvelope).where(
-            VaultKeyEnvelope.kind == data.kind,
+            VaultKeyEnvelope.kind == "passphrase",
             VaultKeyEnvelope.key_version == data.key_version,
-            VaultKeyEnvelope.member_id == target_member
-            if target_member is not None
-            else VaultKeyEnvelope.member_id.is_(None),
+            VaultKeyEnvelope.member_id == member_id,
             VaultKeyEnvelope.deleted_at.is_(None),
         )
     )
@@ -42,8 +44,8 @@ async def upsert_envelope(
     else:
         envelope = VaultKeyEnvelope(
             household_id=household_id,
-            member_id=target_member,
-            kind=data.kind,
+            member_id=member_id,
+            kind="passphrase",
             key_version=data.key_version,
             wrapped_key=data.wrapped_key,
             wrap_meta=data.wrap_meta,
@@ -51,6 +53,57 @@ async def upsert_envelope(
         session.add(envelope)
     await emit(session, type="vault.key_changed", household_id=household_id, payload={})
     await session.flush()
+    return envelope
+
+
+def _already_set_up() -> ProblemException:
+    return ProblemException(
+        slug="vault_already_set_up", title="Der Tresor ist bereits eingerichtet", status=409
+    )
+
+
+async def _create_recovery_envelope(
+    session: AsyncSession, *, household_id: uuid.UUID, data: EnvelopeUpsert
+) -> VaultKeyEnvelope:
+    """Create the household's recovery envelope — once. The server cannot tell whether a second
+    envelope wraps the same household key (it is opaque by design), so it cannot allow a
+    replacement at all: a client that "sets up" an existing vault would swap the key under every
+    other member, whose entries and recovery code are then lost for good. **Any** live recovery
+    envelope blocks, not only one with the same ``key_version`` — a higher version would shadow
+    the real one just as well. (Key rotation is not built; it gets its own path and ADR.)
+
+    A byte-identical replay returns the stored envelope, so a retried setup request stays
+    idempotent."""
+    existing = await session.scalar(
+        select(VaultKeyEnvelope)
+        .where(VaultKeyEnvelope.kind == "recovery", VaultKeyEnvelope.deleted_at.is_(None))
+        .order_by(VaultKeyEnvelope.key_version.desc())
+        .limit(1)
+    )
+    if existing is not None:
+        if (
+            existing.key_version == data.key_version
+            and existing.wrapped_key == data.wrapped_key
+            and existing.wrap_meta == data.wrap_meta
+        ):
+            return existing
+        raise _already_set_up()
+    envelope = VaultKeyEnvelope(
+        household_id=household_id,
+        member_id=None,
+        kind="recovery",
+        key_version=data.key_version,
+        wrapped_key=data.wrapped_key,
+        wrap_meta=data.wrap_meta,
+    )
+    session.add(envelope)
+    await emit(session, type="vault.key_changed", household_id=household_id, payload={})
+    try:
+        await session.flush()
+    except IntegrityError as exc:
+        # Two members racing through setup: the partial unique index (one recovery envelope per
+        # household and key_version) decides, and the loser gets the same answer as a latecomer.
+        raise _already_set_up() from exc
     return envelope
 
 

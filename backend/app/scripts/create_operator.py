@@ -40,6 +40,15 @@ from app.settings import get_settings
 _PASSWORD_ENV = "CUSTODE_OPERATOR_PASSWORD"  # noqa: S105 - env var NAME, not a secret
 
 
+def _valid_email(email: str) -> bool:
+    """A plausibility check, not RFC 5322: exactly one ``@`` with something on both sides and no
+    whitespace. The address is the operator's login name — a typo here creates an account nobody
+    asked for, and the script reports success."""
+    email = email.strip()
+    local, _, domain = email.partition("@")
+    return bool(local and domain and "@" not in domain and not any(ch.isspace() for ch in email))
+
+
 def _generate_password() -> str:
     """A long random password — this account guards cross-household access, and nobody has to
     type it from memory (it goes into a password manager)."""
@@ -80,6 +89,9 @@ def main() -> None:
     parser.add_argument("email", help="E-Mail-Adresse des Operators")
     args = parser.parse_args()
 
+    if not _valid_email(args.email):
+        print(f"Keine gültige E-Mail-Adresse: {args.email!r} — nichts angelegt.", file=sys.stderr)
+        raise SystemExit(2)
     settings = get_settings()
     # Read straight from the environment: this is a one-off provisioning input, not
     # app configuration, so it has no business in Settings.

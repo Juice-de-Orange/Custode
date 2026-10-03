@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { DangerZone } from "../account-deletion/danger-zone";
 import { ProblemError, useProfile, useSession, useUpdateProfile } from "../auth/session";
 import { InstallAppSection } from "../components/install-app";
+import { LanguageSection } from "../components/language-section";
 import { ProfileForm } from "../components/profile-form";
 import { ErrorState, LoadingState } from "../components/states";
 import { ExportSection } from "../export/export-section";
@@ -73,6 +74,8 @@ export function ProfilePage() {
       {/* Install affordance (ADR-0078): permanent quiet placement — Chromium prompts, iOS gets
           the manual steps, an installed/standalone app sees nothing. */}
       <InstallAppSection />
+
+      <LanguageSection />
 
       {showWearables && (
         <WearablesSection connected={connected} callbackError={callbackError} />

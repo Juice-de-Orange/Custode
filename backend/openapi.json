@@ -6640,7 +6640,7 @@
           "vault"
         ],
         "summary": "Put Key",
-        "description": "Store/replace a wrapped household-key envelope (idempotent per member/kind/version).",
+        "description": "Store a wrapped household-key envelope. The caller's ``passphrase`` envelope may be replaced\n(idempotent per member/version); the household's ``recovery`` envelope is write-once — a\ndifferent one for a vault that already has one is refused with 409 ``vault_already_set_up``.",
         "operationId": "put_key_v1_vault_keys_put",
         "requestBody": {
           "content": {
@@ -9166,7 +9166,7 @@
           "wrapped_key"
         ],
         "title": "EnvelopeUpsert",
-        "description": "Store/replace a wrapped household-key envelope. ``passphrase`` binds to the current member;\n``recovery`` is household-wide (member_id NULL). The server sets ``member_id`` itself."
+        "description": "Store a wrapped household-key envelope. ``passphrase`` binds to the current member and may be\nreplaced; ``recovery`` is household-wide (member_id NULL) and write-once. The server sets\n``member_id`` itself."
       },
       "EventCreate": {
         "properties": {

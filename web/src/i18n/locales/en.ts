@@ -73,6 +73,12 @@ export const messages: Record<string, string> = {
   "profile.save": "Save",
   "profile.saved": "Profile saved.",
   "profile.error.conflict": "Profile changed elsewhere. Please reload and try again.",
+  "profile.language.title": "Language",
+  "profile.language.label": "Interface language",
+  "profile.language.auto": "Same as browser",
+  "profile.language.de": "Deutsch",
+  "profile.language.en": "English",
+  "profile.language.hint": "The choice applies to this browser; the page reloads.",
   "child.section": "Child accounts",
   "child.displayName": "Child's name",
   "child.username": "Username",
@@ -86,6 +92,11 @@ export const messages: Record<string, string> = {
   "child.login.title": "Child sign-in",
   "child.login.submit": "Sign in",
   "child.login.noHousehold": "No household specified. Please use the link from your parent.",
+  "child.loginLink.label": "Sign-in link for children",
+  "child.loginLink.hint":
+    "Children sign in through this link with their username and PIN. Open it on the child's device or bookmark it there.",
+  "child.loginLink.copy": "Copy link",
+  "child.loginLink.copied": "Link copied.",
   "account.title": "Account",
   "account.loggedInAs": "Signed in as",
   "account.role": "Role",
@@ -420,14 +431,17 @@ export const messages: Record<string, string> = {
   "install.ios.hint": "On iPhone/iPad: open the Share menu and choose “Add to Home Screen”.",
   "install.ios.note": "Sign in once in the installed app — fastest with a passkey.",
   "install.dismiss": "Dismiss",
-  "theme.system": "System",
-  "theme.light": "Light",
-  "theme.dark": "Dark",
   "vault.setupHint": "Set a vault passphrase. It encrypts your vault client-side — the server never sees it.",
   "vault.unlockHint": "Enter your vault passphrase to unlock the vault.",
   "vault.passphrase": "Vault passphrase",
   "vault.setup": "Set up vault",
   "vault.unlock": "Unlock",
+  "vault.joinHint":
+    "This household's vault is already set up. Enter the household's recovery code to join it — ask the member who set up the vault. You then choose your own passphrase.",
+  "vault.join": "Join vault",
+  "vault.notForChildren": "The vault is not available for child and guest accounts.",
+  "vault.error.alreadySetUp":
+    "Another member has set up the vault in the meantime. Join it with the household's recovery code.",
   "vault.error.shortPassphrase": "The passphrase needs at least 8 characters.",
   "vault.error.wrongPassphrase": "Wrong passphrase.",
   "vault.error.wrongRecovery": "Wrong recovery code.",
@@ -442,7 +456,8 @@ export const messages: Record<string, string> = {
   "vault.exitNoticeBody":
     "The vault key is not rotated at the moment. Anyone who knows the vault passphrase can still decrypt everything stored before they left. If that happens, change the vault passphrase and the credentials kept inside it.",
   "vault.recoveryTitle": "Recovery code",
-  "vault.recoveryHint": "Store this code safely. It is the only way into the vault if you forget the passphrase. It is shown only once.",
+  "vault.recoveryHint":
+    "Write this code down safely. It opens the vault if you forget the passphrase, and other members of the household need it to join the vault. It is shown only once.",
   "vault.add": "Add entry",
   "vault.name": "Name (encrypted)",
   "vault.secret": "Secret (encrypted)",
@@ -638,6 +653,7 @@ export const messages: Record<string, string> = {
   "calendar.err.notSynced":
     "This event is not yet reconciled with the external calendar — try again in a few minutes.",
   "calendar.err.writeFailed": "Writing to the external calendar failed: {category}",
+  "calendar.err.endBeforeStart": "The end must not be before the start.",
   "calendar.err.externalCreateUnsupported":
     "External calendars only support normal events in UTC here.",
   "calendar.subs.section": "External calendars (CalDAV)",

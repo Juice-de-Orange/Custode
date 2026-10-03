@@ -16,7 +16,8 @@ import {
 } from "../auth/session";
 import { Button } from "../components/button";
 import { ChildCreateForm } from "../components/child-create-form";
-import { VerificationBanner } from "../components/verification-banner";
+import { ChildLoginLink } from "../components/child-login-link";
+import { needsEmailVerification, VerificationBanner } from "../components/verification-banner";
 import { DigestToggle } from "../components/digest-toggle";
 import { HouseholdCreateForm } from "../components/household-create-form";
 import { HouseholdJoinForm } from "../components/household-join-form";
@@ -57,7 +58,7 @@ export function AccountPage() {
 
   return (
     <section aria-labelledby="account-heading" className="space-y-10">
-      {data.email_verified ? null : (
+      {needsEmailVerification(data) ? (
         <VerificationBanner
           pending={requestVerify.isPending}
           sent={verifySent}
@@ -65,7 +66,7 @@ export function AccountPage() {
             requestVerify.mutate(undefined, { onSettled: () => setVerifySent(true) })
           }
         />
-      )}
+      ) : null}
       <div className="space-y-6">
         <h1 id="account-heading" className="font-display text-2xl">
           <Trans id="account.title" />
@@ -178,6 +179,7 @@ export function AccountPage() {
                   });
                 }}
               />
+              {data.household_id ? <ChildLoginLink householdId={data.household_id} /> : null}
             </div>
           </div>
         ) : null}

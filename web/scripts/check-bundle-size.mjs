@@ -37,8 +37,14 @@ const ASSETS = join(DIST, "assets");
 // Mitglieder-App — 820 Schlüssel, von denen sie 73 benutzt. Nach der Trennung steht sie bei
 // ~135,5 statt ~159,6 kB. Das Budget wandert mit, sonst wächst der Gewinn still wieder zu: ein
 // Budget mit 24 kB Luft misst nichts mehr. 145 lässt weiterhin ~7 % für echten neuen Code.
+//
+// 2026-10-03, member von 220 auf 225: der Stand lag bei 219,6 kB — 0,4 kB Luft, also kein
+// Budget mehr, sondern ein Einfrieren. Die Fixes der zweiten Funktionsprüfung (Tresor-Beitritt,
+// Kinder-Anmeldelink, Sprachwahl) sind nutzerseitiger Text in BEIDEN Katalogen, die beide eager
+// geladen werden: +1,2 kB → 220,8. 225 lässt ~2 % für den nächsten Satz Texte; mehr Luft bringt
+// erst ein lazy geladener Zweitkatalog (nur die aktive Sprache im Initial-Payload).
 const ENTRIES = [
-  { html: "index.html", entryChunk: "main", label: "Member-App (index.html)", budgetKb: 220 },
+  { html: "index.html", entryChunk: "main", label: "Member-App (index.html)", budgetKb: 225 },
   { html: "index-ops.html", entryChunk: "ops", label: "Operator-Konsole (index-ops.html)", budgetKb: 145 },
 ];
 // A lazy chunk that must never become eager. Matched by filename prefix (vite names it by package).

@@ -13,10 +13,21 @@ kind of engineering discipline a multi-tenant product handling family data needs
 > (all modules, CalDAV two-way sync, Oura, GDPR export and erasure); Phase 11 (hardening and legal)
 > is in progress; Android (Phase 10) has not started. The maintainer runs one instance for a
 > private household. No public hosted service exists yet. Issues and pull requests are welcome.
+>
+> **What has been checked, and what has not.** Two functional checks ran against a fresh clone
+> — this README followed literally, the PWA used in a real browser, on the dev and the production
+> stack: registration with mail verification, households with a second member and a child
+> account, tasks, rooms, shopping, calendar (CalDAV against Radicale, ICS), notes, recipes,
+> guides, quick-capture, letters, vault, passkeys and TOTP, tenant isolation, GDPR export, the
+> operator console, backup and restore. They did **not** cover: real SMTP delivery (mail went to
+> mailpit), the Oura integration, quick-capture with an LLM (only the deterministic path without
+> one), hardware authenticators (passkeys were exercised with a virtual authenticator), and
+> operation behind a TLS-terminating reverse proxy.
 
 The product is designed in German — the concept and architecture documents in [`KONFIG/`](KONFIG/)
-and the engineering notes in [`docs/`](docs/) are German by intent, and the UI ships in German and
-English (Lingui). This README and [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) are the English
+and the engineering notes in [`docs/`](docs/) are German by intent. The UI ships in German and
+English (Lingui): it follows the browser language, falls back to German, and can be pinned per
+browser under Profile → Language. This README and [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) are the English
 entry points.
 
 <p>
@@ -43,7 +54,8 @@ rights built in from day one (export, erasure, purge jobs, consent for health da
 - **Household tasks** — rooms, recurring tasks with value decay, a scheduling engine, a
   double-entry points ledger and a marketplace with escrow between members.
 - **Vault** — shared credentials encrypted **client-side** (libsodium); the server never sees
-  plaintext.
+  plaintext. One member sets the vault up; the others join it with the household's recovery
+  code and their own passphrase.
 - **Messaging, guides, notes, comments** — letters with read receipts, a household knowledge base
   with German full-text search, notes with version history, generic object links.
 - **Wearables and weather** — Oura OAuth with Art. 9 consent and raw-data retention, Open-Meteo.
@@ -90,7 +102,7 @@ cp .env.example .env     # dev-safe defaults
 make dev                 # api, worker, scheduler, postgres 18, redis, mailpit, radicale
 make migrate             # alembic upgrade head
 make seed-demo           # an invented, lived-in demo household (dev only)
-make install             # uv sync (backend) + npm install (web)
+make install             # uv sync (backend) + npm ci (web)
 make web                 # Vite dev server on http://localhost:5173 (proxies /v1 to the API)
 ```
 
@@ -149,7 +161,10 @@ verification mail, no weekly digest and no password-reset mail. "Forgot password
 
 **Backup and restore.** State lives in two places: the `pgdata` volume (everything except
 files) and the `storagedata` volume (recipe photos, guide attachments). `redisdata` holds only
-the job queue and short-lived state (access tokens, WebAuthn challenges) and needs no backup. Keep the `.env` with the
+the job queue and short-lived state (access tokens, WebAuthn challenges, the household each
+signed-in session has active) and needs no backup. One visible consequence of restoring without
+it: members who are still signed in land on "No active household" ("Kein Haushalt aktiv") until
+they pick the household again on the account page or sign in again — nothing is lost. Keep the `.env` with the
 backups — above all `CUSTODE_CRYPTO_KEY`: without the same key, stored CalDAV passwords and
 wearable tokens are unreadable and must be entered again.
 

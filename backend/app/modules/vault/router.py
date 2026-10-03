@@ -76,7 +76,9 @@ async def list_keys(principal: VaultPrincipal, session: ScopedSession) -> list[E
 async def put_key(
     payload: EnvelopeUpsert, principal: VaultPrincipal, session: ScopedSession
 ) -> EnvelopeResponse:
-    """Store/replace a wrapped household-key envelope (idempotent per member/kind/version)."""
+    """Store a wrapped household-key envelope. The caller's ``passphrase`` envelope may be replaced
+    (idempotent per member/version); the household's ``recovery`` envelope is write-once — a
+    different one for a vault that already has one is refused with 409 ``vault_already_set_up``."""
     household_id = _require_household(principal)
     envelope = await service.upsert_envelope(
         session, household_id=household_id, member_id=principal.user_id, data=payload

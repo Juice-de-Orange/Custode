@@ -1,3 +1,4 @@
+import { formDataBodySerializer } from "@hey-api/client-fetch";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { client } from "../api/client.gen";
@@ -56,12 +57,14 @@ async function deleteRecipe(id: string): Promise<void> {
   if (error) throw toProblem(error, response?.status);
 }
 
-async function putPhoto(vars: { id: string; file: File }): Promise<RecipeWithEtag> {
-  const form = new FormData();
-  form.append("file", vars.file);
+export async function putPhoto(vars: { id: string; file: File }): Promise<RecipeWithEtag> {
+  // Multipart via the client's own serializer; `Content-Type: null` drops the JSON default so the
+  // runtime sets the multipart boundary (see guides/queries.ts, BUGLOG 2026-10-03).
   const { data, error, response } = await client.put({
     url: `/v1/recipes/${vars.id}/photo`,
-    body: form,
+    ...formDataBodySerializer,
+    body: { file: vars.file },
+    headers: { "Content-Type": null },
   });
   if (error) throw toProblem(error, response?.status);
   return withEtag(data, response);

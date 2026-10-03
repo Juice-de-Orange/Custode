@@ -12,8 +12,9 @@ from pydantic import BaseModel, Field
 
 
 class EnvelopeUpsert(BaseModel):
-    """Store/replace a wrapped household-key envelope. ``passphrase`` binds to the current member;
-    ``recovery`` is household-wide (member_id NULL). The server sets ``member_id`` itself."""
+    """Store a wrapped household-key envelope. ``passphrase`` binds to the current member and may be
+    replaced; ``recovery`` is household-wide (member_id NULL) and write-once. The server sets
+    ``member_id`` itself."""
 
     kind: Literal["passphrase", "recovery"]
     key_version: int = Field(default=1, ge=1)

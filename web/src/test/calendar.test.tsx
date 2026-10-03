@@ -216,3 +216,26 @@ test("deleting an external event asks for confirmation, a local one does not", (
   expect(remove.mutate).toHaveBeenLastCalledWith("loc1", expect.anything());
   confirmSpy.mockRestore();
 });
+
+test("an end before the start is reported at the end field and nothing is sent", () => {
+  const create = mutation();
+  vi.mocked(useCreateEvent).mockReturnValue(create);
+  renderCalendar();
+  fireEvent.change(screen.getByLabelText("Titel"), { target: { value: "Zahnarzt" } });
+  fireEvent.change(screen.getByLabelText("Beginn"), { target: { value: "2026-10-05T10:00" } });
+  fireEvent.change(screen.getByLabelText("Ende"), { target: { value: "2026-10-05T09:00" } });
+  fireEvent.click(screen.getByRole("button", { name: "Termin anlegen" }));
+
+  const end = screen.getByLabelText("Ende");
+  expect(end).toHaveAttribute("aria-invalid", "true");
+  expect(document.getElementById(end.getAttribute("aria-describedby") ?? "")).toHaveTextContent(
+    "Das Ende darf nicht vor dem Beginn liegen.",
+  );
+  expect(create.mutate).not.toHaveBeenCalled();
+
+  // Counter-check: correcting the end clears the error and the event goes out.
+  fireEvent.change(screen.getByLabelText("Ende"), { target: { value: "2026-10-05T11:00" } });
+  expect(screen.getByLabelText("Ende")).not.toHaveAttribute("aria-invalid");
+  fireEvent.click(screen.getByRole("button", { name: "Termin anlegen" }));
+  expect(create.mutate).toHaveBeenCalledOnce();
+});

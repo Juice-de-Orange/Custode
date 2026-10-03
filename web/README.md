@@ -4,7 +4,7 @@ React 19 + TypeScript (strict) + Vite. TanStack Router/Query, Tailwind 4 auf
 eigenem Token-Set (ENTWICKLUNGSKONZEPT A.2), Radix-Primitives, Lingui (DE/EN).
 
 ```bash
-npm install
+npm ci              # nicht `npm install`: npm 10.9 schreibt sonst die Lockdatei um
 npm run dev         # http://localhost:5173 (proxyt /v1 → http://localhost:8000)
 npm run typecheck   # tsc --noEmit (strict)
 npm run lint        # eslint (+ jsx-a11y, react-hooks)

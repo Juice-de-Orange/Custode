@@ -8,6 +8,13 @@ type VerificationBannerProps = {
   sent: boolean; // after a resend we confirm instead of offering the button again
 };
 
+/** Whether the account has an e-mail address left to confirm. A child account has none (it signs
+ *  in with username + PIN), so `email_verified` is false for it forever — asking it to confirm,
+ *  with a "resend" button that has nowhere to send to, is noise. */
+export function needsEmailVerification(me: { email: string | null; email_verified: boolean }): boolean {
+  return !me.email_verified && !!me.email;
+}
+
 // Shown on the account page while the user's e-mail is unverified (me.email_verified === false).
 export function VerificationBanner({ onResend, pending, sent }: VerificationBannerProps) {
   return (
