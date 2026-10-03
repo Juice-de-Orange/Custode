@@ -46,4 +46,4 @@ async def load_ops_session(token: str) -> uuid.UUID | None:
 
 async def revoke_ops_session(token: str) -> None:
     """Drop a single operator session (logout)."""
-    await cast("Awaitable[int]", get_redis().delete(_key(hash_token(token))))
+    await get_redis().delete(_key(hash_token(token)))

@@ -27,11 +27,11 @@ async def record_failure(household_id: object, username: str) -> None:
     """Count a wrong-PIN attempt; the first one starts the lockout window."""
     redis = get_redis()
     key = _key(household_id, username)
-    count = await cast("Awaitable[int]", redis.incr(key))
+    count = await redis.incr(key)
     if count == 1:
-        await cast("Awaitable[bool]", redis.expire(key, _LOCKOUT_S))
+        await redis.expire(key, _LOCKOUT_S)
 
 
 async def reset(household_id: object, username: str) -> None:
     """Clear the failure counter after a successful login."""
-    await cast("Awaitable[int]", get_redis().delete(_key(household_id, username)))
+    await get_redis().delete(_key(household_id, username))

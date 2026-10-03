@@ -58,7 +58,7 @@ async def pop_challenge(key: str) -> bytes | None:
     raw = await cast("Awaitable[str | None]", redis.get(f"webauthn:{key}"))
     if raw is None:
         return None
-    await cast("Awaitable[int]", redis.delete(f"webauthn:{key}"))
+    await redis.delete(f"webauthn:{key}")
     return _unb64url(raw)
 
 
