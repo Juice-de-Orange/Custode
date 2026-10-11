@@ -21,7 +21,6 @@
     "@fontsource-variable/bricolage-grotesque": "^5.3.0",
     "@fontsource-variable/inter": "^5.3.0",
     "@fontsource/ibm-plex-mono": "^5.3.0",
-    "@hey-api/client-fetch": "^0.13.1",
     "@lingui/core": "^5.2.0",
     "@lingui/message-utils": "^5.9.5",
     "@lingui/react": "^5.2.0",
@@ -33,20 +32,20 @@
     "libsodium-wrappers-sumo": "^0.8.4",
     "lucide-react": "^1.49.0",
     "qrcode.react": "^4.2.0",
-    "react": "~19.2.7",
-    "react-dom": "~19.2.7",
+    "react": "~19.3.0",
+    "react-dom": "~19.3.0",
     "zod": "^4.6.5"
   },
   "devDependencies": {
     "@eslint/js": "^9.20.0",
-    "@hey-api/openapi-ts": "~0.64.15",
+    "@hey-api/openapi-ts": "~0.99.0",
     "@lhci/cli": "^0.15.1",
     "@tailwindcss/vite": "^4.3.3",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.3",
     "@types/libsodium-wrappers-sumo": "^0.8.2",
-    "@types/react": "~19.2.17",
-    "@types/react-dom": "~19.2.3",
+    "@types/react": "~19.3.0",
+    "@types/react-dom": "~19.3.0",
     "@vite-pwa/assets-generator": "^1.0.4",
     "@vitejs/plugin-react": "^4.3.4",
     "axe-core": "^4.13.0",
@@ -73,6 +72,9 @@
     "ip-address": "^10.7.3",
     "@hey-api/json-schema-ref-parser": {
       "js-yaml": "^4.3.0"
+    },
+    "@lhci/cli": {
+      "uuid": "^11.1.1"
     }
   }
 }

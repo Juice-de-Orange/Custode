@@ -1,5 +1,4 @@
-import { createClient, createConfig } from "@hey-api/client-fetch";
-
+import { createClient, createConfig } from "../api/client";
 import type { ClientOptions } from "../api/types.gen";
 
 // Dedicated @hey-api client for the operator console — a separate instance from the member
