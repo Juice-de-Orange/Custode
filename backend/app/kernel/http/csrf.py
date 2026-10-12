@@ -30,7 +30,7 @@ async def require_csrf(request: Request) -> None:
     if not cookie or not header or not secrets.compare_digest(cookie, header):
         raise ProblemException(
             slug="csrf_failed",
-            title="CSRF-Prüfung fehlgeschlagen",
+            title="CSRF check failed",
             status=403,
-            detail="Fehlendes oder ungültiges CSRF-Token.",
+            detail="Missing or invalid CSRF token.",
         )

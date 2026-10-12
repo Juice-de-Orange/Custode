@@ -72,6 +72,12 @@ history (June–September 2026, German) is not part of the public repository.
   otherwise `422 validation`. **Behaviour change for API clients:** a create or PATCH with a naive
   pair, and a restore/reset with a naive `occurrence_start`, used to succeed with the value read as
   UTC. The web app always sends offsets and is not affected.
+- E-mails (verification, password reset, weekly digest) are written in the recipient's account
+  language — German for a German locale, English otherwise — instead of always German. The web
+  app stores the interface language on the account at registration and on a change in the
+  profile.
+- API problem responses have English `title` and `detail` texts (slugs unchanged; the web app
+  translates by slug as before), and `docs/errors.md` is in English.
 
 ### Fixed
 

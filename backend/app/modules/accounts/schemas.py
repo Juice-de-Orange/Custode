@@ -26,7 +26,7 @@ class RegisterRequest(BaseModel):
     def _normalize_email(cls, value: str) -> str:
         value = value.strip().lower()
         if "@" not in value:
-            raise ValueError("Ungültige E-Mail-Adresse.")
+            raise ValueError("Invalid e-mail address.")
         return value
 
 

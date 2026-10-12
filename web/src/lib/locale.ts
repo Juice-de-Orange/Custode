@@ -1,7 +1,9 @@
 // Interface language. Two catalogs ship (German, English); which one is active is decided once at
 // load: an explicit choice stored in this browser wins, otherwise the browser's language list,
 // otherwise English (the language most visitors without a German or English browser read). The
-// choice is per browser, like the theme — it is a display preference, not account data.
+// choice is per browser, like the theme — a display preference. The account keeps a copy
+// (`users.locale`, set at registration and on a change in the profile) only because the server
+// writes the account's e-mails in it.
 export type Locale = "de" | "en";
 
 export const LOCALES: readonly Locale[] = ["de", "en"];

@@ -145,7 +145,7 @@ async def suggest_slot(
     )
     if pick is None:
         raise ProblemException(
-            slug="no_candidate", title="Kein passendes Rezept zum Vorschlagen", status=422
+            slug="no_candidate", title="No matching recipe to suggest", status=422
         )
     data = SlotSet(day_of_week=day_of_week, slot=slot_key, recipe_id=pick)
     return await set_slot(session, household_id=household_id, week_start=week_start, data=data)
@@ -366,7 +366,7 @@ async def mark_slot_cooked(
         )
     )
     if slot is None or slot.recipe_id is None:
-        raise ProblemException(slug="no_recipe", title="Kein Rezept in diesem Slot", status=422)
+        raise ProblemException(slug="no_recipe", title="No recipe in this slot", status=422)
     await recipes_api.mark_cooked(
         session, household_id=household_id, recipe_id=slot.recipe_id, when=datetime.now(UTC)
     )
@@ -395,7 +395,7 @@ async def create_cook_task(
             dish = titles.get(slot.recipe_id)
         dish = dish or slot.free_text
     if slot is None or not dish:
-        raise ProblemException(slug="no_dish", title="Kein Gericht in diesem Slot", status=422)
+        raise ProblemException(slug="no_dish", title="No dish in this slot", status=422)
 
     assigned_to = slot.cook_id or user_id
     title = f"Kochen: {dish}"
@@ -421,12 +421,12 @@ async def create_prep_task(
     _, slots, titles = await get_week(session, household_id=household_id, week_start=week_start)
     slot = next((s for s in slots if s.day_of_week == day_of_week and s.slot == slot_key), None)
     if slot is None or slot.recipe_id is None:
-        raise ProblemException(slug="no_recipe", title="Kein Rezept in diesem Slot", status=422)
+        raise ProblemException(slug="no_recipe", title="No recipe in this slot", status=422)
     recipe = await recipes_api.get_recipe(session, recipe_id=slot.recipe_id)
     hint = needs_prep(recipe.steps_md, recipe.tags)
     if hint is None:
         raise ProblemException(
-            slug="no_prep", title="Keine Vorbereitung am Vortag nötig", status=422
+            slug="no_prep", title="No preparation needed the day before", status=422
         )
 
     assigned_to = slot.cook_id or user_id

@@ -61,7 +61,7 @@ async def get_guide(session: AsyncSession, *, guide_id: uuid.UUID) -> Guide:
     """One guide of the active household (RLS hides other households -> 404)."""
     guide = await session.get(Guide, guide_id)
     if guide is None or guide.deleted_at is not None:
-        raise ProblemException(slug="not_found", title="Anleitung nicht gefunden", status=404)
+        raise ProblemException(slug="not_found", title="Guide not found", status=404)
     return guide
 
 
@@ -78,7 +78,7 @@ async def update_guide(
     guide = await get_guide(session, guide_id=guide_id)
     if guide.version != expected_version:
         raise ProblemException(
-            slug="precondition_failed", title="Anleitung zwischenzeitlich geändert", status=412
+            slug="precondition_failed", title="Guide was changed in the meantime", status=412
         )
     if data.title is not None:
         guide.title = data.title
@@ -189,7 +189,7 @@ async def get_attachment(session: AsyncSession, *, attachment_id: uuid.UUID) -> 
     """One attachment of the active household (RLS hides other households -> 404)."""
     attachment = await session.get(GuideAttachment, attachment_id)
     if attachment is None or attachment.deleted_at is not None:
-        raise ProblemException(slug="not_found", title="Anhang nicht gefunden", status=404)
+        raise ProblemException(slug="not_found", title="Attachment not found", status=404)
     return attachment
 
 

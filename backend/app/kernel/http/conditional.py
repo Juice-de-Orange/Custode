@@ -11,12 +11,10 @@ def parse_if_match(raw: str | None) -> int:
     """Parse an If-Match header into the expected ``version``. Missing -> 428 (the client must send
     the ETag it read); malformed -> 412. Tolerates quotes and a weak-validator ``W/`` prefix."""
     if not raw:
-        raise ProblemException(
-            slug="precondition_required", title="If-Match erforderlich", status=428
-        )
+        raise ProblemException(slug="precondition_required", title="If-Match required", status=428)
     try:
         return int(raw.strip().removeprefix("W/").strip().strip('"'))
     except ValueError as exc:
         raise ProblemException(
-            slug="precondition_failed", title="If-Match ungültig", status=412
+            slug="precondition_failed", title="Invalid If-Match", status=412
         ) from exc

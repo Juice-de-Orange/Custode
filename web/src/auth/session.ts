@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { client } from "../api/client.gen";
+import { detectLocale, type Locale } from "../lib/locale";
 import { ProblemError, toProblem } from "../lib/problem";
 import {
   assertionToJson,
@@ -52,8 +53,13 @@ async function postLogin(body: LoginRequest): Promise<SessionResponse> {
   return data as SessionResponse;
 }
 
-async function postRegister(body: RegisterRequest): Promise<SessionResponse> {
-  const { data, error, response } = await client.post({ url: "/v1/auth/register", body });
+// The account starts in the interface language in effect: the backend writes the account's
+// e-mails (verification, password reset, weekly digest) in `users.locale`. Exported for the test.
+export async function postRegister(body: RegisterRequest): Promise<SessionResponse> {
+  const { data, error, response } = await client.post({
+    url: "/v1/auth/register",
+    body: { ...body, locale: body.locale ?? detectLocale() },
+  });
   if (error) throw toProblem(error, response?.status);
   return data as SessionResponse;
 }
@@ -366,6 +372,18 @@ async function patchProfile(vars: {
   });
   if (error) throw toProblem(error, response?.status);
   return { ...(data as ProfileResponse), etag: response?.headers.get("etag") ?? "" };
+}
+
+/** Store the interface language on the account, so its e-mails follow a later language change.
+ *  Best effort and never throws: the interface switch itself is per browser and works without
+ *  it — on failure the account just keeps writing in its previous language. */
+export async function saveAccountLocale(locale: Locale): Promise<void> {
+  try {
+    const profile = await fetchProfile();
+    await patchProfile({ update: { locale }, etag: profile.etag });
+  } catch {
+    /* best effort */
+  }
 }
 
 export const PROFILE_QUERY_KEY = ["account", "profile"] as const;

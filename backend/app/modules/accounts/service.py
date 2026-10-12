@@ -35,6 +35,7 @@ from app.kernel.events.emit import emit
 from app.kernel.http.problem import ProblemException
 from app.kernel.ports.mail import MailPort
 from app.kernel.tenancy.session import maint_session, scoped_session
+from app.modules.accounts.mails import password_reset_mail, verification_mail
 from app.modules.accounts.models import Consent, Household, Invite, Membership, User
 from app.modules.accounts.schemas import ProfileUpdate
 from app.settings import get_settings
@@ -80,7 +81,7 @@ def _reject_deleted(user: User | None) -> None:
     """
     if user is not None and user.deleted_at is not None:
         raise ProblemException(
-            slug="invalid_credentials", title="E-Mail oder Passwort falsch", status=401
+            slug="invalid_credentials", title="Wrong e-mail or password", status=401
         )
 
 
@@ -115,7 +116,7 @@ async def login(
                 country_code=country_code,
             )
             raise ProblemException(
-                slug="invalid_credentials", title="E-Mail oder Passwort falsch", status=401
+                slug="invalid_credentials", title="Wrong e-mail or password", status=401
             )
         if user.totp_enabled:
             ok = bool(totp_code) and totp.verify(user.totp_secret or "", totp_code or "")
@@ -126,9 +127,9 @@ async def login(
                 await record_login_event(user_id=user.id, success=False, country_code=country_code)
                 raise ProblemException(
                     slug="totp_required",
-                    title="Zwei-Faktor-Code erforderlich",
+                    title="Two-factor code required",
                     status=401,
-                    detail="Code aus der Authenticator-App oder einen Recovery-Code angeben.",
+                    detail="Enter the code from your authenticator app or a recovery code.",
                 )
         refresh_token = new_token()
         family_id = new_uuid7()
@@ -164,10 +165,12 @@ class TokenReuseError(ProblemException):
     def __init__(self, *, family_id: uuid.UUID) -> None:
         super().__init__(
             slug="token_reuse",
-            title="Sitzung widerrufen",
+            title="Session revoked",
             status=401,
-            detail="Der Token wurde wiederverwendet — alle Sitzungen dieses Geräts wurden aus "
-            "Sicherheitsgründen beendet. Bitte neu anmelden.",
+            detail=(
+                "The token was reused — all sessions of this device were ended for security "
+                "reasons. Please sign in again."
+            ),
         )
         self.family_id = family_id
 
@@ -192,7 +195,7 @@ async def refresh(
             select(AuthSession).where(AuthSession.refresh_hash == token_hash)
         )
         if sess is None:
-            raise ProblemException(slug="invalid_token", title="Sitzung ungültig", status=401)
+            raise ProblemException(slug="invalid_token", title="Invalid session", status=401)
         now = datetime.now(UTC)
         if sess.rotated_at is not None or sess.revoked_at is not None:
             # Reuse of a consumed/revoked token -> theft. Burn the whole family and
@@ -205,7 +208,7 @@ async def refresh(
             await session.commit()
             raise TokenReuseError(family_id=sess.family_id)
         if sess.expires_at <= now:
-            raise ProblemException(slug="expired_token", title="Sitzung abgelaufen", status=401)
+            raise ProblemException(slug="expired_token", title="Session expired", status=401)
 
         # Die Sitzung selbst wird beim Löschantrag widerrufen; diese Prüfung ist der Gürtel zum
         # Hosenträger — ein Refresh-Token, das die Widerrufsschleife überlebt hätte (Rennen
@@ -457,13 +460,8 @@ async def request_password_reset(*, email: str, mail: MailPort, base_url: str) -
         return  # identical outcome to the found case — no enumeration
     token = await issue_reset_token(user.id)
     link = f"{base_url.rstrip('/')}/reset-password?token={token}"
-    body = (
-        "Hallo,\n\n"
-        "zum Zurücksetzen deines Passworts öffne diesen Link (eine Stunde gültig):\n\n"
-        f"{link}\n\n"
-        "Wenn du das nicht angefordert hast, kannst du diese E-Mail ignorieren.\n"
-    )
-    await mail.send(to=email_norm, subject="Passwort zurücksetzen", body_md=body)
+    subject, body = password_reset_mail(user.locale, link)
+    await mail.send(to=email_norm, subject=subject, body_md=body)
 
 
 async def reset_password(*, token: str, new_password: str) -> None:
@@ -474,46 +472,39 @@ async def reset_password(*, token: str, new_password: str) -> None:
     reason = password_too_weak(new_password)
     if reason is not None:
         raise ProblemException(
-            slug="weak_password", title="Passwort zu schwach", status=422, detail=reason
+            slug="weak_password", title="Password too weak", status=422, detail=reason
         )
     if await pwned_count(new_password):
         raise ProblemException(
             slug="pwned_password",
-            title="Passwort aus Datenleck",
+            title="Password found in a data breach",
             status=422,
-            detail="Dieses Passwort taucht in bekannten Datenlecks auf. Bitte ein anderes wählen.",
+            detail="This password appears in known data breaches. Please choose another one.",
         )
     user_id = await consume_reset_token(token)
     if user_id is None:
-        raise ProblemException(
-            slug="reset_invalid", title="Link ungültig oder abgelaufen", status=400
-        )
+        raise ProblemException(slug="reset_invalid", title="Link invalid or expired", status=400)
     async with scoped_session(household_id=user_id, user_id=user_id) as session:
         user = await session.get(User, user_id)
         if user is None:  # account vanished between request and reset
-            raise ProblemException(slug="reset_invalid", title="Link ungültig", status=400)
+            raise ProblemException(slug="reset_invalid", title="Invalid link", status=400)
         if user.deleted_at is not None:
             # Ein Reset-Link ist 24 h gültig — lange genug, um die Löschung zu überholen.
-            raise ProblemException(slug="reset_invalid", title="Link ungültig", status=400)
+            raise ProblemException(slug="reset_invalid", title="Invalid link", status=400)
         user.password_hash = hash_password(new_password)
         families = await revoke_all_sessions(user_id=user_id)
     await burn_access_families(families)
 
 
 async def send_verification_email(
-    *, user_id: uuid.UUID, email: str, mail: MailPort, base_url: str
+    *, user_id: uuid.UUID, email: str, locale: str | None, mail: MailPort, base_url: str
 ) -> None:
-    """Mail a single-use 24-hour e-mail-verification link. Best-effort (a mail failure is a no-op;
-    the user can resend)."""
+    """Mail a single-use 24-hour e-mail-verification link in the user's language (``locale``).
+    Best-effort (a mail failure is a no-op; the user can resend)."""
     token = await issue_verification_token(user_id)
     link = f"{base_url.rstrip('/')}/verify-email?token={token}"
-    body = (
-        "Hallo,\n\n"
-        "bitte bestätige deine E-Mail-Adresse über diesen Link (24 Stunden gültig):\n\n"
-        f"{link}\n\n"
-        "Wenn du kein Konto angelegt hast, kannst du diese E-Mail ignorieren.\n"
-    )
-    await mail.send(to=email, subject="E-Mail bestätigen", body_md=body)
+    subject, body = verification_mail(locale, link)
+    await mail.send(to=email, subject=subject, body_md=body)
 
 
 async def request_email_verification(
@@ -524,7 +515,9 @@ async def request_email_verification(
     user = await session.get(User, user_id)
     if user is None or user.email is None or user.email_verified_at is not None:
         return
-    await send_verification_email(user_id=user_id, email=user.email, mail=mail, base_url=base_url)
+    await send_verification_email(
+        user_id=user_id, email=user.email, locale=user.locale, mail=mail, base_url=base_url
+    )
 
 
 async def confirm_email(*, token: str) -> None:
@@ -532,13 +525,11 @@ async def confirm_email(*, token: str) -> None:
     ``email_verified_at`` (self-scoped update); an unknown/expired token is a 400."""
     user_id = await consume_verification_token(token)
     if user_id is None:
-        raise ProblemException(
-            slug="verify_invalid", title="Link ungültig oder abgelaufen", status=400
-        )
+        raise ProblemException(slug="verify_invalid", title="Link invalid or expired", status=400)
     async with scoped_session(household_id=user_id, user_id=user_id) as session:
         user = await session.get(User, user_id)
         if user is None:
-            raise ProblemException(slug="verify_invalid", title="Link ungültig", status=400)
+            raise ProblemException(slug="verify_invalid", title="Invalid link", status=400)
         if user.email_verified_at is None:
             user.email_verified_at = datetime.now(UTC)
 
@@ -547,7 +538,7 @@ async def get_profile(session: AsyncSession, *, user_id: uuid.UUID) -> User:
     """Load the user's own row for the profile view (self-scoped session)."""
     user = await session.get(User, user_id)
     if user is None:  # pragma: no cover - a valid principal implies a user
-        raise ProblemException(slug="not_found", title="Konto nicht gefunden", status=404)
+        raise ProblemException(slug="not_found", title="Account not found", status=404)
     return user
 
 
@@ -560,10 +551,10 @@ async def update_profile(
     carries the new ETag. Self-scoped (``users`` WITH CHECK ``id = app.user_id``)."""
     user = await session.get(User, user_id)
     if user is None:  # pragma: no cover - a valid principal implies a user
-        raise ProblemException(slug="not_found", title="Konto nicht gefunden", status=404)
+        raise ProblemException(slug="not_found", title="Account not found", status=404)
     if user.version != expected_version:
         raise ProblemException(
-            slug="precondition_failed", title="Profil zwischenzeitlich geändert", status=412
+            slug="precondition_failed", title="Profile was changed in the meantime", status=412
         )
     if update.display_name is not None:
         user.display_name = update.display_name
@@ -597,15 +588,15 @@ async def register_user(
     reason = password_too_weak(password)
     if reason is not None:
         raise ProblemException(
-            slug="weak_password", title="Passwort zu schwach", status=422, detail=reason
+            slug="weak_password", title="Password too weak", status=422, detail=reason
         )
     # None => HIBP unreachable; proceed (Null-Adapter). >0 => breached; reject.
     if await pwned_count(password, client=pwned_client):
         raise ProblemException(
             slug="pwned_password",
-            title="Passwort aus Datenleck",
+            title="Password found in a data breach",
             status=422,
-            detail="Dieses Passwort taucht in bekannten Datenlecks auf. Bitte ein anderes wählen.",
+            detail="This password appears in known data breaches. Please choose another one.",
         )
 
     user_id = new_uuid7()
@@ -625,7 +616,7 @@ async def register_user(
             await session.flush()
         except IntegrityError as exc:
             raise ProblemException(
-                slug="email_taken", title="E-Mail bereits vergeben", status=409
+                slug="email_taken", title="E-mail already registered", status=409
             ) from exc
     return user_id
 
@@ -636,10 +627,10 @@ async def totp_begin_setup(session: AsyncSession, *, user_id: uuid.UUID) -> tupl
     user's own row (the request's self-scoped session)."""
     user = await session.get(User, user_id)
     if user is None:
-        raise ProblemException(slug="not_found", title="Konto nicht gefunden", status=404)
+        raise ProblemException(slug="not_found", title="Account not found", status=404)
     if user.totp_enabled:
         raise ProblemException(
-            slug="totp_already_enabled", title="2FA ist bereits aktiv", status=409
+            slug="totp_already_enabled", title="2FA is already enabled", status=409
         )
     secret = totp.generate_secret()
     user.totp_secret = secret
@@ -654,13 +645,13 @@ async def totp_enable(session: AsyncSession, *, user_id: uuid.UUID, code: str) -
     a fresh set of one-time recovery codes (shown to the user once)."""
     user = await session.get(User, user_id)
     if user is None or user.totp_secret is None:
-        raise ProblemException(slug="totp_not_set_up", title="Kein 2FA-Setup vorhanden", status=409)
+        raise ProblemException(slug="totp_not_set_up", title="No 2FA setup in progress", status=409)
     if user.totp_enabled:
         raise ProblemException(
-            slug="totp_already_enabled", title="2FA ist bereits aktiv", status=409
+            slug="totp_already_enabled", title="2FA is already enabled", status=409
         )
     if not totp.verify(user.totp_secret, code):
-        raise ProblemException(slug="totp_invalid", title="Code ungültig", status=422)
+        raise ProblemException(slug="totp_invalid", title="Invalid code", status=422)
     user.totp_enabled = True
     return await generate_recovery_codes(session, user_id=user_id)
 
@@ -669,9 +660,9 @@ async def totp_disable(session: AsyncSession, *, user_id: uuid.UUID, code: str) 
     """Disable TOTP after verifying a current code (proves possession of the device)."""
     user = await session.get(User, user_id)
     if user is None or not user.totp_enabled or user.totp_secret is None:
-        raise ProblemException(slug="totp_not_enabled", title="2FA ist nicht aktiv", status=409)
+        raise ProblemException(slug="totp_not_enabled", title="2FA is not enabled", status=409)
     if not totp.verify(user.totp_secret, code):
-        raise ProblemException(slug="totp_invalid", title="Code ungültig", status=422)
+        raise ProblemException(slug="totp_invalid", title="Invalid code", status=422)
     user.totp_secret = None
     user.totp_enabled = False
     await session.execute(delete(RecoveryCode).where(RecoveryCode.user_id == user_id))
@@ -761,16 +752,14 @@ async def passkey_register_finish(
     challenge = await webauthn.pop_challenge(f"reg:{user_id}")
     if challenge is None:
         raise ProblemException(
-            slug="passkey_challenge_expired", title="Challenge abgelaufen", status=400
+            slug="passkey_challenge_expired", title="Challenge expired", status=400
         )
     try:
         reg = webauthn.verify_registration(
             credential=credential, challenge=challenge, rp_id=rp_id, origin=origin
         )
     except Exception as exc:  # any verification failure -> fail closed
-        raise ProblemException(
-            slug="passkey_invalid", title="Passkey ungültig", status=400
-        ) from exc
+        raise ProblemException(slug="passkey_invalid", title="Invalid passkey", status=400) from exc
     session.add(
         Passkey(
             user_id=user_id,
@@ -785,7 +774,7 @@ async def passkey_register_finish(
         await session.flush()
     except IntegrityError as exc:
         raise ProblemException(
-            slug="passkey_exists", title="Passkey bereits registriert", status=409
+            slug="passkey_exists", title="Passkey already registered", status=409
         ) from exc
 
 
@@ -814,16 +803,16 @@ async def passkey_auth_finish(
     challenge = await webauthn.pop_challenge(f"auth:{flow_id}")
     if challenge is None:
         raise ProblemException(
-            slug="passkey_challenge_expired", title="Challenge abgelaufen", status=400
+            slug="passkey_challenge_expired", title="Challenge expired", status=400
         )
     raw_id = credential.get("id") or credential.get("rawId")
     if not isinstance(raw_id, str):
-        raise ProblemException(slug="passkey_invalid", title="Passkey ungültig", status=400)
+        raise ProblemException(slug="passkey_invalid", title="Invalid passkey", status=400)
     cred_id = webauthn.canonical_id(raw_id)
     async with maint_session() as session:
         pk = await session.scalar(select(Passkey).where(Passkey.credential_id == cred_id))
         if pk is None:
-            raise ProblemException(slug="passkey_invalid", title="Passkey unbekannt", status=401)
+            raise ProblemException(slug="passkey_invalid", title="Unknown passkey", status=401)
         # Ein Passkey überlebt die Löschanfrage in der Tabelle (er fällt erst mit dem Nutzer per
         # ON DELETE CASCADE). Ohne diese Prüfung wäre er der bequemste Weg zurück in ein Konto,
         # dessen Löschung gerade läuft.
@@ -839,7 +828,7 @@ async def passkey_auth_finish(
             )
         except Exception as exc:  # signature / sign-count / origin mismatch -> fail closed
             raise ProblemException(
-                slug="passkey_invalid", title="Passkey ungültig", status=401
+                slug="passkey_invalid", title="Invalid passkey", status=401
             ) from exc
         now = datetime.now(UTC)
         pk.sign_count = new_count
@@ -891,7 +880,7 @@ async def delete_passkey(
         .returning(Passkey.id)
     )
     if result.first() is None:
-        raise ProblemException(slug="not_found", title="Passkey nicht gefunden", status=404)
+        raise ProblemException(slug="not_found", title="Passkey not found", status=404)
 
 
 def would_leave_no_admin(
@@ -913,7 +902,7 @@ async def get_digest_enabled(session: AsyncSession, *, household_id: uuid.UUID) 
     RLS-scoped; 404 if the household isn't visible."""
     household = await session.get(Household, household_id)
     if household is None:
-        raise ProblemException(slug="not_found", title="Haushalt nicht gefunden", status=404)
+        raise ProblemException(slug="not_found", title="Household not found", status=404)
     return bool((household.settings_json or {}).get("digest_enabled", True))
 
 
@@ -924,7 +913,7 @@ async def set_digest_enabled(
     JSONB change is tracked. Returns the new value; 404 if the household isn't visible."""
     household = await session.get(Household, household_id)
     if household is None:
-        raise ProblemException(slug="not_found", title="Haushalt nicht gefunden", status=404)
+        raise ProblemException(slug="not_found", title="Household not found", status=404)
     household.settings_json = {**(household.settings_json or {}), "digest_enabled": enabled}
     await session.flush()
     return enabled
@@ -949,7 +938,7 @@ async def create_child(
     the household's children (KONZEPT §5.1, child-safety: no wearables/vault, marketplace off by
     flag default)."""
     if not (pin.isdigit() and 4 <= len(pin) <= 6):
-        raise ProblemException(slug="weak_pin", title="PIN muss 4-6 Ziffern haben", status=422)
+        raise ProblemException(slug="weak_pin", title="PIN must have 4-6 digits", status=422)
     child_id = new_uuid7()
     pin_hash = hash_password(pin)
     async with scoped_session(household_id=household_id, user_id=child_id) as session:
@@ -965,7 +954,7 @@ async def create_child(
         )
         if taken:
             raise ProblemException(
-                slug="username_taken", title="Benutzername bereits vergeben", status=409
+                slug="username_taken", title="Username already taken", status=409
             )
         session.add(
             User(id=child_id, display_name=display_name, username=username, pin_hash=pin_hash)
@@ -1068,7 +1057,7 @@ async def child_login(
     ``custode_maint`` (pre-tenant). Returns (session, household_id, child role)."""
     if await childpin.is_locked(household_id, username):
         raise ProblemException(
-            slug="too_many_attempts", title="Zu viele Versuche — bitte später erneut", status=429
+            slug="too_many_attempts", title="Too many attempts — please try again later", status=429
         )
     async with maint_session() as session:
         row = (
@@ -1095,7 +1084,7 @@ async def child_login(
         _reject_deleted(user)  # nach dem Verify — Timing-Gleichheit, s. _reject_deleted
         if user is None or user.pin_hash is None or not pin_ok:
             await childpin.record_failure(household_id, username)
-            raise ProblemException(slug="invalid_pin", title="PIN falsch", status=401)
+            raise ProblemException(slug="invalid_pin", title="Wrong PIN", status=401)
         await childpin.reset(household_id, username)
         refresh_token = new_token()
         family_id = new_uuid7()
@@ -1141,7 +1130,7 @@ async def create_invite(
     # Sperre, die an einem vorherigen Schritt hängt, ist keine Sperre.
     household = await session.get(Household, household_id)
     if household is None or household.deleted_at is not None:
-        raise ProblemException(slug="household_dissolved", title="Haushalt aufgelöst", status=410)
+        raise ProblemException(slug="household_dissolved", title="Household dissolved", status=410)
     code = new_invite_code()
     session.add(
         Invite(
@@ -1207,17 +1196,17 @@ async def change_role(
     # list_members), so a removed admin row can never satisfy the last-admin guard.
     roles: dict[uuid.UUID, str] = {mid: role for mid, _, role in await _locked_roster(session)}
     if membership_id not in roles:
-        raise ProblemException(slug="not_found", title="Mitgliedschaft nicht gefunden", status=404)
+        raise ProblemException(slug="not_found", title="Membership not found", status=404)
     if would_leave_no_admin(roles, membership_id=membership_id, new_role=new_role):
         raise ProblemException(
             slug="forbidden",
-            title="Letzter Admin kann nicht herabgestuft werden",
+            title="The last admin cannot be demoted",
             status=403,
-            detail="Übertrage zuerst die Admin-Rolle an ein anderes Mitglied.",
+            detail="Hand the admin role to another member first.",
         )
     membership = await session.get(Membership, membership_id)
     if membership is None:  # pragma: no cover - existence checked against the roster above
-        raise ProblemException(slug="not_found", title="Mitgliedschaft nicht gefunden", status=404)
+        raise ProblemException(slug="not_found", title="Membership not found", status=404)
     membership.role = new_role
     await emit(
         session,
@@ -1244,17 +1233,17 @@ async def remove_member(
     hinterlassen."""
     roles: dict[uuid.UUID, str] = {mid: role for mid, _, role in await _locked_roster(session)}
     if membership_id not in roles:
-        raise ProblemException(slug="not_found", title="Mitgliedschaft nicht gefunden", status=404)
+        raise ProblemException(slug="not_found", title="Membership not found", status=404)
     if would_leave_no_admin(roles, membership_id=membership_id, new_role=Role.member.value):
         raise ProblemException(
             slug="forbidden",
-            title="Letzter Admin kann nicht entfernt werden",
+            title="The last admin cannot be removed",
             status=403,
-            detail="Übertrage zuerst die Admin-Rolle an ein anderes Mitglied.",
+            detail="Hand the admin role to another member first.",
         )
     membership = await session.get(Membership, membership_id)
     if membership is None:  # pragma: no cover - existence checked against the roster above
-        raise ProblemException(slug="not_found", title="Mitgliedschaft nicht gefunden", status=404)
+        raise ProblemException(slug="not_found", title="Membership not found", status=404)
     membership.deleted_at = datetime.now(UTC)
     # Der Zugang endet SOFORT, nicht erst mit dem nächsten Outbox-Tick: `Principal` wird aus dem
     # opaken Access-Token gebaut und je Anfrage NICHT gegen die Datenbank geprüft — das Token trägt
@@ -1306,7 +1295,7 @@ async def leave_household(
     rows = await _locked_roster(session)
     own = next((row for row in rows if row[1] == user_id), None)
     if own is None:  # pragma: no cover - ein Principal ohne Mitgliedschaft kommt nicht bis hier
-        raise ProblemException(slug="not_found", title="Mitgliedschaft nicht gefunden", status=404)
+        raise ProblemException(slug="not_found", title="Membership not found", status=404)
     membership_id, _, own_role = own
 
     # Ein Kind kann sich hier nicht selbst hinauswerfen — nicht aus Bevormundung, sondern weil es
@@ -1318,10 +1307,12 @@ async def leave_household(
     if own_role == Role.child.value:
         raise ProblemException(
             slug="child_cannot_leave",
-            title="Das muss die Verwaltung machen",
+            title="An admin has to do this",
             status=409,
-            detail="Ein Kinder-Konto käme ohne E-Mail und Passwort nicht wieder hinein. "
-            "Bitte ein erwachsenes Mitglied darum, das Konto zu entfernen.",
+            detail=(
+                "A child account has no e-mail or password to get back in. Ask an adult member "
+                "to remove the account."
+            ),
         )
 
     if own_role == Role.admin.value:
@@ -1329,32 +1320,34 @@ async def leave_household(
         if not other_roles:
             raise ProblemException(
                 slug="sole_member",
-                title="Du bist das einzige Mitglied",
+                title="You are the only member",
                 status=409,
-                detail="Einen Haushalt, in dem sonst niemand ist, kann man nicht verlassen — "
-                "er müsste aufgelöst werden.",
+                detail=(
+                    "You cannot leave a household that has no other members — it has to be "
+                    "dissolved instead."
+                ),
             )
         reason = exit_blocker_reason(other_roles)
         if reason is not None:
             raise ProblemException(
                 slug=reason,
                 title=(
-                    "Erst die Admin-Rolle übergeben"
+                    "Hand over the admin role first"
                     if reason == "last_admin"
-                    else "Dieser Haushalt muss aufgelöst werden"
+                    else "This household has to be dissolved"
                 ),
                 status=409,
                 detail=(
-                    "Übertrage zuerst die Admin-Rolle an ein anderes Mitglied."
+                    "Hand the admin role to another member first."
                     if reason == "last_admin"
-                    else "Außer dir leben hier nur Kinder oder Gäste — niemand kann die "
-                    "Verwaltung übernehmen."
+                    else "Apart from you, only children or guests live here — nobody can take over "
+                    "the administration."
                 ),
             )
 
     membership = await session.get(Membership, membership_id)
     if membership is None:  # pragma: no cover - existence checked against the roster above
-        raise ProblemException(slug="not_found", title="Mitgliedschaft nicht gefunden", status=404)
+        raise ProblemException(slug="not_found", title="Membership not found", status=404)
     membership.deleted_at = datetime.now(UTC)
     families = await revoke_all_sessions(user_id=user_id)
     await emit(
@@ -1408,10 +1401,10 @@ async def dissolve_household(
     """
     household = await session.get(Household, household_id)
     if household is None:  # pragma: no cover - der Principal impliziert den Haushalt
-        raise ProblemException(slug="not_found", title="Haushalt nicht gefunden", status=404)
+        raise ProblemException(slug="not_found", title="Household not found", status=404)
     if household.deleted_at is not None:
         raise ProblemException(
-            slug="already_dissolved", title="Haushalt ist bereits aufgelöst", status=409
+            slug="already_dissolved", title="Household is already dissolved", status=409
         )
 
     roster = await _locked_roster(session)
@@ -1625,17 +1618,17 @@ def _deletion_blocker_detail(blockers: list[DeletionBlocker]) -> str:
     transferable = [b.name for b in blockers if b.reason == "last_admin"]
     if transferable:
         parts.append(
-            "In diesen Haushalten bist du die einzige Person mit Admin-Rechten: "
+            "You are the only admin in these households: "
             + ", ".join(transferable)
-            + ". Übertrage die Rolle an ein anderes erwachsenes Mitglied."
+            + ". Hand the role to another adult member."
         )
     children_only = [b.name for b in blockers if b.reason == "only_children"]
     if children_only:
         parts.append(
-            "In diesen Haushalten leben außer dir nur Kinder: "
+            "Apart from you, only children live in these households: "
             + ", ".join(children_only)
-            + ". Ein Kind kann die Verwaltung nicht übernehmen — der Haushalt muss aufgelöst "
-            "werden. Bitte melde dich beim Betreiber."
+            + ". A child cannot take over the administration — the household has to be "
+            "dissolved. Please contact the operator."
         )
     return " ".join(parts)
 
@@ -1674,7 +1667,7 @@ async def request_account_deletion(*, user_id: uuid.UUID) -> set[uuid.UUID]:
     if blockers:
         raise ProblemException(
             slug="last_admin",
-            title="Erst die Admin-Rolle übergeben",
+            title="Hand over the admin role first",
             status=409,
             detail=_deletion_blocker_detail(blockers),
             extra={"households": [str(b.household_id) for b in blockers]},
@@ -1825,9 +1818,9 @@ async def accept_invite(*, user_id: uuid.UUID, code: str) -> tuple[uuid.UUID, Ro
     async with maint_session() as session:
         invite = await session.scalar(select(Invite).where(Invite.code == code))
         if invite is None:
-            raise ProblemException(slug="not_found", title="Einladung nicht gefunden", status=404)
+            raise ProblemException(slug="not_found", title="Invitation not found", status=404)
         if invite.expires_at <= datetime.now(UTC):
-            raise ProblemException(slug="invite_expired", title="Einladung abgelaufen", status=410)
+            raise ProblemException(slug="invite_expired", title="Invitation expired", status=410)
         invite_id = invite.id
         household_id = invite.household_id
         role = invite.role
@@ -1839,7 +1832,7 @@ async def accept_invite(*, user_id: uuid.UUID, code: str) -> tuple[uuid.UUID, Ro
         )
         if dissolved is not None:
             raise ProblemException(
-                slug="household_dissolved", title="Haushalt aufgelöst", status=410
+                slug="household_dissolved", title="Household dissolved", status=410
             )
         already = await session.scalar(
             select(Membership.id).where(
@@ -1847,7 +1840,7 @@ async def accept_invite(*, user_id: uuid.UUID, code: str) -> tuple[uuid.UUID, Ro
             )
         )
         if already is not None:
-            raise ProblemException(slug="already_member", title="Bereits Mitglied", status=409)
+            raise ProblemException(slug="already_member", title="Already a member", status=409)
 
     # Writes as custode_app, scoped to the invite's household (bootstrap path). The
     # use-bump and the insert share one transaction — a failed insert rolls back the use.
@@ -1859,15 +1852,13 @@ async def accept_invite(*, user_id: uuid.UUID, code: str) -> tuple[uuid.UUID, Ro
             .returning(Invite.id)
         )
         if claimed is None:
-            raise ProblemException(
-                slug="invite_exhausted", title="Einladung aufgebraucht", status=409
-            )
+            raise ProblemException(slug="invite_exhausted", title="Invitation used up", status=409)
         session.add(Membership(household_id=household_id, user_id=user_id, role=role))
         try:
             await session.flush()
         except IntegrityError as exc:  # raced another accept of the same invite
             raise ProblemException(
-                slug="already_member", title="Bereits Mitglied", status=409
+                slug="already_member", title="Already a member", status=409
             ) from exc
         # Transactional outbox: the join event lands in the SAME tx as the membership +
         # use-bump, so it can never be lost or leak from a rolled-back accept.
@@ -1905,6 +1896,14 @@ async def list_members(session: AsyncSession) -> list[Member]:
 
 
 @dataclass(frozen=True)
+class DigestRecipient:
+    """One adult who receives a household's weekly digest, with the language it is written in."""
+
+    email: str
+    locale: str
+
+
+@dataclass(frozen=True)
 class DigestTarget:
     """A household plus the adult members who should receive its weekly digest (P8-S6). Built under
     the **maint role** (cross-household). The caller honours the per-household ``settings_json``
@@ -1913,17 +1912,17 @@ class DigestTarget:
     household_id: uuid.UUID
     name: str
     settings_json: dict[str, Any]
-    recipient_emails: tuple[str, ...]
+    recipients: tuple[DigestRecipient, ...]
 
 
 async def list_digest_recipients(session: AsyncSession) -> list[DigestTarget]:
-    """Every household with its adult (admin/member) members' e-mail addresses, for the weekly
-    digest fan-out (ARCHITECTURE §9). Runs under the **maint role**, which sees all households, so
-    the join is explicit (no RLS scope). Children/guests and members without an e-mail are excluded;
-    households with no eligible recipient are dropped."""
+    """Every household with its adult (admin/member) members' e-mail addresses (and locales, for
+    the mail language), for the weekly digest fan-out (ARCHITECTURE §9). Runs under the **maint
+    role**, which sees all households, so the join is explicit (no RLS scope). Children/guests and
+    members without an e-mail are excluded; households with no eligible recipient are dropped."""
     rows = (
         await session.execute(
-            select(Household.id, Household.name, Household.settings_json, User.email)
+            select(Household.id, Household.name, Household.settings_json, User.email, User.locale)
             .join(Membership, Membership.household_id == Household.id)
             .join(User, User.id == Membership.user_id)
             .where(
@@ -1934,13 +1933,15 @@ async def list_digest_recipients(session: AsyncSession) -> list[DigestTarget]:
             .order_by(Household.id)
         )
     ).all()
-    grouped: dict[uuid.UUID, tuple[str, dict[str, Any], list[str]]] = {}
-    for household_id, name, settings_json, email in rows:
-        _name, _settings, emails = grouped.setdefault(household_id, (name, settings_json or {}, []))
-        emails.append(email)
+    grouped: dict[uuid.UUID, tuple[str, dict[str, Any], list[DigestRecipient]]] = {}
+    for household_id, name, settings_json, email, locale in rows:
+        _name, _settings, recipients = grouped.setdefault(
+            household_id, (name, settings_json or {}, [])
+        )
+        recipients.append(DigestRecipient(email=email, locale=locale))
     return [
         DigestTarget(
-            household_id=hid, name=name, settings_json=settings, recipient_emails=tuple(emails)
+            household_id=hid, name=name, settings_json=settings, recipients=tuple(recipients)
         )
-        for hid, (name, settings, emails) in grouped.items()
+        for hid, (name, settings, recipients) in grouped.items()
     ]

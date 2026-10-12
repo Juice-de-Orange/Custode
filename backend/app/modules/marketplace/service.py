@@ -25,7 +25,7 @@ from app.modules.tasks import api as tasks_api
 async def get_listing(session: AsyncSession, *, listing_id: uuid.UUID) -> MarketListing:
     listing = await session.get(MarketListing, listing_id)
     if listing is None or listing.deleted_at is not None:
-        raise ProblemException(slug="not_found", title="Listing nicht gefunden", status=404)
+        raise ProblemException(slug="not_found", title="Listing not found", status=404)
     return listing
 
 
@@ -53,9 +53,9 @@ async def create_listing(
     already listed. Emits ``market.listing.created``."""
     instance = await tasks_api.get_instance(session, instance_id=task_instance_id)
     if instance.assigned_to != seller_id:
-        raise ProblemException(slug="not_your_task", title="Nicht deine Aufgabe", status=403)
+        raise ProblemException(slug="not_your_task", title="Not your task", status=403)
     if instance.status != "open":
-        raise ProblemException(slug="invalid_state", title="Aufgabe ist nicht offen", status=409)
+        raise ProblemException(slug="invalid_state", title="Task is not open", status=409)
     existing = await session.scalar(
         select(MarketListing).where(
             MarketListing.task_instance_id == task_instance_id,
@@ -64,7 +64,7 @@ async def create_listing(
         )
     )
     if existing is not None:
-        raise ProblemException(slug="already_listed", title="Bereits gelistet", status=409)
+        raise ProblemException(slug="already_listed", title="Already listed", status=409)
 
     listing = MarketListing(
         household_id=household_id,
@@ -107,10 +107,10 @@ async def accept_listing(
     Emits ``market.listing.sold``."""
     listing = await get_listing(session, listing_id=listing_id)
     if listing.status != "open":
-        raise ProblemException(slug="invalid_state", title="Listing nicht offen", status=409)
+        raise ProblemException(slug="invalid_state", title="Listing is not open", status=409)
     if buyer_id == listing.seller_id:
         raise ProblemException(
-            slug="invalid_transfer", title="Nicht dein eigenes Listing", status=422
+            slug="invalid_transfer", title="Cannot accept your own listing", status=422
         )
     await tasks_api.reassign_instance(
         session,
@@ -132,9 +132,9 @@ async def withdraw_listing(
     if not the seller, 409 if not open. Emits ``market.changed``."""
     listing = await get_listing(session, listing_id=listing_id)
     if listing.seller_id != seller_id:
-        raise ProblemException(slug="not_seller", title="Nicht dein Listing", status=403)
+        raise ProblemException(slug="not_seller", title="Not your listing", status=403)
     if listing.status != "open":
-        raise ProblemException(slug="invalid_state", title="Listing nicht offen", status=409)
+        raise ProblemException(slug="invalid_state", title="Listing is not open", status=409)
     await economy_api.transfer(
         session,
         household_id=household_id,
@@ -180,14 +180,14 @@ async def revert_listing(
     """
     listing = await get_listing(session, listing_id=listing_id)
     if listing.status != "accepted":
-        raise ProblemException(slug="invalid_state", title="Listing nicht angenommen", status=409)
+        raise ProblemException(slug="invalid_state", title="Listing not accepted", status=409)
     task_status = await tasks_api.instance_status(session, instance_id=listing.task_instance_id)
     if task_status == "done":
         raise ProblemException(
             slug="task_already_done",
-            title="Aufgabe ist erledigt",
+            title="Task is done",
             status=409,
-            detail="Ein erfüllter Handel wird abgerechnet, nicht rückabgewickelt.",
+            detail="A fulfilled trade is settled, not reversed.",
         )
     await economy_api.transfer(
         session,
@@ -226,12 +226,10 @@ async def settle_listing(
     Emits ``market.trade.settled``."""
     listing = await get_listing(session, listing_id=listing_id)
     if listing.status != "accepted" or listing.buyer_id is None:
-        raise ProblemException(slug="invalid_state", title="Listing nicht angenommen", status=409)
+        raise ProblemException(slug="invalid_state", title="Listing not accepted", status=409)
     instance = await tasks_api.get_instance(session, instance_id=listing.task_instance_id)
     if instance.status != "done":
-        raise ProblemException(
-            slug="task_not_done", title="Aufgabe noch nicht erledigt", status=409
-        )
+        raise ProblemException(slug="task_not_done", title="Task is not done yet", status=409)
     await economy_api.transfer(
         session,
         household_id=household_id,
@@ -355,7 +353,7 @@ async def delete_rule(session: AsyncSession, *, member_id: uuid.UUID, rule_id: u
     """Soft-delete one of the caller's own rules (404 if not theirs)."""
     rule = await session.get(AutoAcceptRule, rule_id)
     if rule is None or rule.deleted_at is not None or rule.member_id != member_id:
-        raise ProblemException(slug="not_found", title="Regel nicht gefunden", status=404)
+        raise ProblemException(slug="not_found", title="Rule not found", status=404)
     rule.deleted_at = datetime.now(UTC)
 
 

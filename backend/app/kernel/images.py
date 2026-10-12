@@ -19,9 +19,7 @@ def normalize_image(raw: bytes) -> bytes:
         image = Image.open(io.BytesIO(raw))
         image.load()  # force decode now — catches truncated / bomb inputs here, not later
     except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError) as exc:
-        raise ProblemException(
-            slug="invalid_image", title="Kein gültiges Bild", status=422
-        ) from exc
+        raise ProblemException(slug="invalid_image", title="Not a valid image", status=422) from exc
     rgb = image.convert("RGB")  # drop alpha + any EXIF; the JPEG re-save carries no metadata
     rgb.thumbnail((_MAX_DIM, _MAX_DIM))
     out = io.BytesIO()

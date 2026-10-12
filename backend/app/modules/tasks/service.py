@@ -60,7 +60,7 @@ async def get_template(session: AsyncSession, *, template_id: uuid.UUID) -> Task
     """One template of the active household (RLS hides other households -> 404)."""
     template = await session.get(TaskTemplate, template_id)
     if template is None or template.deleted_at is not None:
-        raise ProblemException(slug="not_found", title="Vorlage nicht gefunden", status=404)
+        raise ProblemException(slug="not_found", title="Template not found", status=404)
     return template
 
 
@@ -77,7 +77,7 @@ async def update_template(
     template = await get_template(session, template_id=template_id)
     if template.version != expected_version:
         raise ProblemException(
-            slug="precondition_failed", title="Vorlage zwischenzeitlich geändert", status=412
+            slug="precondition_failed", title="Template was changed in the meantime", status=412
         )
     if data.title is not None:
         template.title = data.title
@@ -136,7 +136,7 @@ async def create_instance(
     if not title:
         raise ProblemException(
             slug="title_required",
-            title="Titel erforderlich (Template oder Titel angeben)",
+            title="Title required (give a template or a title)",
             status=422,
         )
     instance = TaskInstance(
@@ -245,7 +245,7 @@ async def get_instance(session: AsyncSession, *, instance_id: uuid.UUID) -> Task
     """One instance of the active household (RLS hides other households -> 404)."""
     instance = await session.get(TaskInstance, instance_id)
     if instance is None or instance.deleted_at is not None:
-        raise ProblemException(slug="not_found", title="Aufgabe nicht gefunden", status=404)
+        raise ProblemException(slug="not_found", title="Task not found", status=404)
     return instance
 
 
@@ -279,10 +279,10 @@ async def complete_instance(
     instance = await get_instance(session, instance_id=instance_id)
     if instance.version != expected_version:
         raise ProblemException(
-            slug="precondition_failed", title="Aufgabe zwischenzeitlich geändert", status=412
+            slug="precondition_failed", title="Task was changed in the meantime", status=412
         )
     if instance.status != "open":
-        raise ProblemException(slug="invalid_state", title="Aufgabe ist nicht offen", status=409)
+        raise ProblemException(slug="invalid_state", title="Task is not open", status=409)
     now = datetime.now(UTC)
     instance.status = "done"
     instance.done_at = now
@@ -338,7 +338,7 @@ async def list_rooms(session: AsyncSession) -> list[Room]:
 async def get_room(session: AsyncSession, *, room_id: uuid.UUID) -> Room:
     room = await session.get(Room, room_id)
     if room is None or room.deleted_at is not None:
-        raise ProblemException(slug="not_found", title="Raum nicht gefunden", status=404)
+        raise ProblemException(slug="not_found", title="Room not found", status=404)
     return room
 
 
@@ -356,7 +356,7 @@ async def update_room(
     room = await get_room(session, room_id=room_id)
     if room.version != expected_version:
         raise ProblemException(
-            slug="precondition_failed", title="Raum zwischenzeitlich geändert", status=412
+            slug="precondition_failed", title="Room was changed in the meantime", status=412
         )
     if name is not None:
         room.name = name
@@ -445,7 +445,7 @@ async def reassign_instance(
     instance is no longer open. Emits ``task.updated``."""
     instance = await get_instance(session, instance_id=instance_id)
     if instance.status != "open":
-        raise ProblemException(slug="invalid_state", title="Aufgabe ist nicht offen", status=409)
+        raise ProblemException(slug="invalid_state", title="Task is not open", status=409)
     instance.assigned_to = assignee
     await emit(
         session,

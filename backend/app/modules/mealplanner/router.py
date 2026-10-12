@@ -37,7 +37,7 @@ AuthorPrincipal = Annotated[Principal, Depends(require_role(Role.admin, Role.mem
 
 def _require_household(principal: Principal) -> uuid.UUID:
     if principal.household_id is None:
-        raise ProblemException(slug="forbidden", title="Kein aktiver Haushalt", status=403)
+        raise ProblemException(slug="forbidden", title="No active household", status=403)
     return principal.household_id
 
 
@@ -148,7 +148,7 @@ async def personal_suggestion(
     )
     if suggestion is None:
         raise ProblemException(
-            slug="no_candidate", title="Kein passendes Rezept zum Vorschlagen", status=404
+            slug="no_candidate", title="No matching recipe to suggest", status=404
         )
     return PersonalSuggestionResponse(
         recipe_id=suggestion.recipe_id,

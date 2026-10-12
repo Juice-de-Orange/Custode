@@ -113,3 +113,49 @@ async def test_digest_runs_through_null_mail(migrated_pg: PgDatabase) -> None:
     async with maker() as session:
         sent = await send_weekly_digests(session, mail=NullMail(), brand="Custode", now=_NOW)
     assert sent == 1
+
+
+async def test_digest_speaks_each_recipients_language(migrated_pg: PgDatabase) -> None:
+    """Each adult gets the digest in their own ``users.locale``; anything but German is English."""
+    hh_a, hh_b = uuid.uuid4(), uuid.uuid4()
+    await _seed(migrated_pg, hh_a, hh_b)
+    su = await asyncpg.connect(
+        host=migrated_pg.get_container_host_ip(),
+        port=int(migrated_pg.get_exposed_port(5432)),
+        user=migrated_pg.username,
+        password=migrated_pg.password,
+        database=migrated_pg.dbname,
+    )
+    try:
+        await su.execute("UPDATE users SET locale = 'en' WHERE email = 'a@example.de';")
+        second, third = uuid.uuid4(), uuid.uuid4()
+        await su.execute(
+            "INSERT INTO users (id, display_name, email, locale) VALUES "
+            "($1,'Member A2','a2@example.de','de-AT'), ($2,'Member A3','a3@example.de','fr');",
+            second,
+            third,
+        )
+        await su.execute(
+            "INSERT INTO memberships (household_id, user_id, role) VALUES "
+            "($1,$2,'member'), ($1,$3,'member');",
+            hh_a,
+            second,
+            third,
+        )
+    finally:
+        await su.close()
+
+    mail = FakeMail()
+    maker = _maint_sessionmaker(migrated_pg)
+    async with maker() as session:
+        sent = await send_weekly_digests(session, mail=mail, brand="Custode", now=_NOW)
+
+    assert sent == 3
+    by_to = {to: (subject, body) for (to, subject, body) in mail.sent}
+    en_subject, en_body = by_to["a@example.de"]
+    assert en_subject == "Custode: weekly overview for Familie A"
+    assert "Open tasks: 2 (1 overdue)." in en_body
+    de_subject, de_body = by_to["a2@example.de"]
+    assert de_subject == "Custode: Wochenüberblick für Familie A"
+    assert "Offene Aufgaben: 2 (davon 1 überfällig)." in de_body
+    assert by_to["a3@example.de"] == (en_subject, en_body)  # no French templates -> English

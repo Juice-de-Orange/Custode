@@ -961,6 +961,78 @@ async def test_email_verification_token_single_use(app: FastAPI) -> None:
         assert again.status_code == 400
 
 
+# ------------------------------------------------------- mail language (users.locale)
+
+
+async def _register_with_locale(client: AsyncClient, locale: str) -> str:
+    email = _email()
+    resp = await client.post(
+        "/v1/auth/register",
+        json={"email": email, "password": _PASSWORD, "display_name": "Tester", "locale": locale},
+    )
+    assert resp.status_code == 201, resp.text
+    return email
+
+
+async def _verification_and_reset_mails(
+    app: FastAPI, locale: str
+) -> tuple[tuple[str, str, str], tuple[str, str, str]]:
+    """Register with ``locale`` and request a password reset; return (verify mail, reset mail)."""
+    mail = _CaptureMail()
+    app.dependency_overrides[get_mail] = lambda: mail
+    async with _client(app) as c:
+        email = await _register_with_locale(c, locale)
+        forgot = await c.post("/v1/auth/password/forgot", json={"email": email})
+        assert forgot.status_code == 204
+    assert len(mail.sent) == 2, mail.sent
+    return mail.sent[0], mail.sent[1]
+
+
+async def test_mails_speak_english_to_an_english_user(app: FastAPI) -> None:
+    verify, reset = await _verification_and_reset_mails(app, "en")
+    assert verify[1] == "Confirm your e-mail address"
+    assert "/verify-email?token=" in verify[2]
+    assert "valid for 24 hours" in verify[2]
+    assert reset[1] == "Reset your password"
+    assert "/reset-password?token=" in reset[2]
+    assert "valid for one hour" in reset[2]
+
+
+async def test_mails_fall_back_to_english_for_a_locale_without_templates(app: FastAPI) -> None:
+    verify, reset = await _verification_and_reset_mails(app, "fr-FR")
+    assert verify[1] == "Confirm your e-mail address"
+    assert reset[1] == "Reset your password"
+
+
+async def test_mails_stay_german_for_a_german_user(app: FastAPI) -> None:
+    verify, reset = await _verification_and_reset_mails(app, "de-AT")
+    assert verify[1] == "E-Mail bestätigen"
+    assert "24 Stunden gültig" in verify[2]
+    assert reset[1] == "Passwort zurücksetzen"
+    assert "eine Stunde gültig" in reset[2]
+
+
+async def test_resent_verification_mail_follows_the_profile_locale(app: FastAPI) -> None:
+    """The resend reads the stored ``users.locale``, so a later language change takes effect."""
+    mail = _CaptureMail()
+    app.dependency_overrides[get_mail] = lambda: mail
+    async with _client(app) as c:
+        await _register_with_locale(c, "de")
+        etag = (await c.get("/v1/account/profile")).headers["etag"]
+        patched = await c.patch(
+            "/v1/account/profile",
+            json={"locale": "en"},
+            headers={**_csrf(c), "If-Match": etag},
+        )
+        assert patched.status_code == 200, patched.text
+        resend = await c.post("/v1/auth/email/verify/request", headers=_csrf(c))
+        assert resend.status_code == 204
+    assert [subject for (_to, subject, _body) in mail.sent] == [
+        "E-Mail bestätigen",
+        "Confirm your e-mail address",
+    ]
+
+
 # ------------------------------------------------------- profile (If-Match) (S11)
 
 

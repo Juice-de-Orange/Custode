@@ -92,7 +92,7 @@ async def get_recipe(session: AsyncSession, *, recipe_id: uuid.UUID) -> Recipe:
     """One recipe of the active household (RLS hides other households -> 404)."""
     recipe = await session.get(Recipe, recipe_id)
     if recipe is None or recipe.deleted_at is not None:
-        raise ProblemException(slug="not_found", title="Rezept nicht gefunden", status=404)
+        raise ProblemException(slug="not_found", title="Recipe not found", status=404)
     return recipe
 
 
@@ -166,7 +166,7 @@ async def update_recipe(
     recipe = await get_recipe(session, recipe_id=recipe_id)
     if recipe.version != expected_version:
         raise ProblemException(
-            slug="precondition_failed", title="Rezept zwischenzeitlich geändert", status=412
+            slug="precondition_failed", title="Recipe was changed in the meantime", status=412
         )
     if data.title is not None:
         recipe.title = data.title
@@ -211,7 +211,7 @@ async def import_from_url(url: str) -> RecipeImportResponse:
     draft = extract_jsonld_recipe(html, final_url) or extract_with_scrapers(html, final_url)
     if draft is None:
         raise ProblemException(
-            slug="import_no_recipe", title="Kein Rezept auf der Seite gefunden", status=422
+            slug="import_no_recipe", title="No recipe found on the page", status=422
         )
     return draft
 

@@ -24,7 +24,7 @@ _MAX_HORIZON = timedelta(days=31)
 
 def _require_household(principal: Principal) -> uuid.UUID:
     if principal.household_id is None:
-        raise ProblemException(slug="forbidden", title="Kein aktiver Haushalt", status=403)
+        raise ProblemException(slug="forbidden", title="No active household", status=403)
     return principal.household_id
 
 
@@ -46,11 +46,11 @@ async def suggest_slots(
     window_from = frm if frm is not None else datetime.now(UTC)
     window_to = to if to is not None else window_from + _DEFAULT_HORIZON
     if window_to <= window_from:
-        raise ProblemException(slug="invalid_range", title="Ungültiges Zeitfenster", status=422)
+        raise ProblemException(slug="invalid_range", title="Invalid time window", status=422)
     if window_to - window_from > _MAX_HORIZON:
         window_to = window_from + _MAX_HORIZON
     if day_end <= day_start:
-        raise ProblemException(slug="invalid_hours", title="Ungültige Arbeitszeiten", status=422)
+        raise ProblemException(slug="invalid_hours", title="Invalid working hours", status=422)
     slots = await service.suggest_slots(
         session,
         viewer_id=principal.user_id,

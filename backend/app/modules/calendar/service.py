@@ -81,7 +81,7 @@ def _reject_external(event: CalendarEvent) -> None:
     if event.subscription_id is not None:
         raise ProblemException(
             slug="external_event_read_only",
-            title="Externer Termin — nur Lesen (Quelle ist der abonnierte Kalender)",
+            title="External event — read-only (the subscribed calendar is the source)",
             status=409,
         )
 
@@ -92,7 +92,7 @@ def _reject_external(event: CalendarEvent) -> None:
 def _external_conflict() -> ProblemException:
     return ProblemException(
         slug="external_conflict",
-        title="Extern geändert — der nächste Sync holt den Stand",
+        title="Changed externally — the next sync fetches the current state",
         status=409,
     )
 
@@ -103,13 +103,11 @@ def _map_caldav_error(exc: CaldavError) -> ProblemException:
     if exc.category in ("conflict", "not_found"):
         return _external_conflict()
     if exc.category == "sync_disabled":
-        return ProblemException(
-            slug="caldav_disabled", title="CalDAV-Sync ist deaktiviert", status=503
-        )
+        return ProblemException(slug="caldav_disabled", title="CalDAV sync is disabled", status=503)
     # Category slugs are ours (never a URL/credential/content) — safe to expose for support.
     return ProblemException(
         slug="caldav_write_failed",
-        title="Externer Kalender nicht erreichbar",
+        title="External calendar not reachable",
         status=502,
         extra={"category": exc.category},
     )
@@ -127,7 +125,7 @@ def _mirror_credentials(sub: ExternalCalendarSubscription) -> CaldavAuth:
     except SecretBoxError as exc:
         raise ProblemException(
             slug="caldav_write_failed",
-            title="Externer Kalender nicht erreichbar",
+            title="External calendar not reachable",
             status=502,
             extra={"category": "creds_undecryptable"},
         ) from exc
@@ -142,14 +140,14 @@ async def _mirror_subscription(
     if event.ext_href is None or event.source_uid is None:
         raise ProblemException(
             slug="external_not_synced",
-            title="Noch nicht synchronisiert — der nächste Sync-Lauf verknüpft den Termin",
+            title="Not synced yet — the next sync run links the event",
             status=409,
         )
     sub = await session.get(ExternalCalendarSubscription, event.subscription_id)
     if sub is None or sub.deleted_at is not None:  # unsubscribe tombstones mirrors — defensive
         raise ProblemException(
             slug="external_not_synced",
-            title="Abo nicht mehr vorhanden",
+            title="Subscription no longer exists",
             status=409,
         )
     return sub
@@ -161,9 +159,9 @@ async def get_event(
     """Fetch one event the viewer may see (404 if missing, soft-deleted, or a foreign personal)."""
     event = await session.get(CalendarEvent, event_id)
     if event is None or event.deleted_at is not None:
-        raise ProblemException(slug="not_found", title="Termin nicht gefunden", status=404)
+        raise ProblemException(slug="not_found", title="Event not found", status=404)
     if event.layer == "personal" and event.owner_id != viewer_id:
-        raise ProblemException(slug="not_found", title="Termin nicht gefunden", status=404)
+        raise ProblemException(slug="not_found", title="Event not found", status=404)
     return event
 
 
@@ -219,11 +217,9 @@ async def create_event(
     RRULE. With ``subscription_id`` the event is first created in the external CalDAV calendar
     (synchronous write-through, P9-S4) and kept as a mirror. Emits ``calendar.event.created``."""
     if data.rrule is not None and not is_valid_rrule(data.rrule, dtstart=data.starts_at):
-        raise ProblemException(
-            slug="invalid_rrule", title="Ungültige Wiederholungsregel", status=422
-        )
+        raise ProblemException(slug="invalid_rrule", title="Invalid recurrence rule", status=422)
     if not is_valid_tzid(data.tzid):
-        raise ProblemException(slug="invalid_tzid", title="Ungültige Zeitzone", status=422)
+        raise ProblemException(slug="invalid_tzid", title="Invalid time zone", status=422)
     if data.subscription_id is not None:
         return await _create_mirror_event(
             session, household_id=household_id, owner_id=owner_id, data=data, caldav=caldav
@@ -262,17 +258,17 @@ async def _create_mirror_event(
     answer 422 (E6) — a silent flip on the next sync tick would be worse."""
     sub = await session.get(ExternalCalendarSubscription, data.subscription_id)
     if sub is None or sub.deleted_at is not None or sub.member_id != owner_id:
-        raise ProblemException(slug="not_found", title="Abo nicht gefunden", status=404)
+        raise ProblemException(slug="not_found", title="Subscription not found", status=404)
     if data.kind != "normal":
         raise ProblemException(
             slug="external_kind_unsupported",
-            title="Externe Termine unterstützen nur kind=normal",
+            title="External events support only kind=normal",
             status=422,
         )
     if data.tzid != "UTC":
         raise ProblemException(
             slug="external_tzid_unsupported",
-            title="Externe Termine werden UTC-verankert angelegt (tzid muss UTC sein)",
+            title="External events are created anchored in UTC (tzid must be UTC)",
             status=422,
         )
     auth = _mirror_credentials(sub)
@@ -354,10 +350,10 @@ async def update_event(
     ``calendar.event.updated``."""
     event = await get_event(session, viewer_id=viewer_id, event_id=event_id)
     if event.owner_id != viewer_id:
-        raise ProblemException(slug="not_owner", title="Nicht dein Termin", status=403)
+        raise ProblemException(slug="not_owner", title="Not your event", status=403)
     if event.version != expected_version:
         raise ProblemException(
-            slug="precondition_failed", title="Termin zwischenzeitlich geändert", status=412
+            slug="precondition_failed", title="Event was changed in the meantime", status=412
         )
     if event.subscription_id is not None:
         return await _update_mirror_event(
@@ -385,16 +381,14 @@ async def update_event(
         event.rrule = data.rrule or None  # empty string clears the recurrence
     if data.tzid is not None:
         if not is_valid_tzid(data.tzid):
-            raise ProblemException(slug="invalid_tzid", title="Ungültige Zeitzone", status=422)
+            raise ProblemException(slug="invalid_tzid", title="Invalid time zone", status=422)
         event.tzid = data.tzid
     if event.ends_at < event.starts_at:
         raise ProblemException(
-            slug="invalid_range", title="Ende darf nicht vor dem Beginn liegen", status=422
+            slug="invalid_range", title="End must not be before start", status=422
         )
     if event.rrule is not None and not is_valid_rrule(event.rrule, dtstart=event.starts_at):
-        raise ProblemException(
-            slug="invalid_rrule", title="Ungültige Wiederholungsregel", status=422
-        )
+        raise ProblemException(slug="invalid_rrule", title="Invalid recurrence rule", status=422)
     await emit(session, type="calendar.event.updated", household_id=household_id, payload={})
     await session.flush()
     await session.refresh(event, attribute_names=["version", "updated_at"])
@@ -419,7 +413,7 @@ async def _update_mirror_event(
         if requested is not None and requested != current:
             raise ProblemException(
                 slug="external_field_readonly",
-                title="Feld ist bei externen Terminen nicht änderbar",
+                title="This field cannot be changed on external events",
                 status=422,
                 extra={"field": field},
             )
@@ -443,13 +437,11 @@ async def _update_mirror_event(
     ends = cast(datetime, eff["ends_at"])
     if ends < starts:
         raise ProblemException(
-            slug="invalid_range", title="Ende darf nicht vor dem Beginn liegen", status=422
+            slug="invalid_range", title="End must not be before start", status=422
         )
     rrule = cast(str | None, eff["rrule"])
     if rrule is not None and not is_valid_rrule(rrule, dtstart=starts):
-        raise ProblemException(
-            slug="invalid_rrule", title="Ungültige Wiederholungsregel", status=422
-        )
+        raise ProblemException(slug="invalid_rrule", title="Invalid recurrence rule", status=422)
 
     sub = await _mirror_subscription(session, event)
     auth = _mirror_credentials(sub)
@@ -508,7 +500,7 @@ async def delete_event(
     ``calendar.event.deleted``."""
     event = await get_event(session, viewer_id=viewer_id, event_id=event_id)
     if event.owner_id != viewer_id:
-        raise ProblemException(slug="not_owner", title="Nicht dein Termin", status=403)
+        raise ProblemException(slug="not_owner", title="Not your event", status=403)
     if event.subscription_id is not None:
         sub = await _mirror_subscription(session, event)
         auth = _mirror_credentials(sub)
@@ -537,10 +529,10 @@ async def _series_for_exception(
     has no occurrences to cancel)."""
     event = await get_event(session, viewer_id=viewer_id, event_id=event_id)
     if event.owner_id != viewer_id:
-        raise ProblemException(slug="not_owner", title="Nicht dein Termin", status=403)
+        raise ProblemException(slug="not_owner", title="Not your event", status=403)
     _reject_external(event)
     if event.rrule is None:
-        raise ProblemException(slug="not_a_series", title="Termin ist keine Serie", status=422)
+        raise ProblemException(slug="not_a_series", title="Event is not a series", status=422)
     return event, event.rrule
 
 
@@ -557,7 +549,9 @@ async def cancel_occurrence(
     already-cancelled instance is a no-op. Emits ``calendar.event.updated``."""
     event, rrule = await _series_for_exception(session, viewer_id=viewer_id, event_id=event_id)
     if not is_occurrence(event.starts_at, rrule, occurrence_start, tzid=event.tzid):
-        raise ProblemException(slug="not_an_occurrence", title="Kein Termin der Serie", status=422)
+        raise ProblemException(
+            slug="not_an_occurrence", title="Not an occurrence of the series", status=422
+        )
     target = as_utc_instant(occurrence_start)
     if all(as_utc_instant(dt) != target for dt in event.exdates):
         # Reassign (not .append) so SQLAlchemy detects the mutation of the ARRAY column.
@@ -605,14 +599,16 @@ async def move_occurrence(
     ``calendar.event.updated``."""
     event, rrule = await _series_for_exception(session, viewer_id=viewer_id, event_id=event_id)
     if not is_occurrence(event.starts_at, rrule, occurrence_start, tzid=event.tzid):
-        raise ProblemException(slug="not_an_occurrence", title="Kein Termin der Serie", status=422)
+        raise ProblemException(
+            slug="not_an_occurrence", title="Not an occurrence of the series", status=422
+        )
     if new_end < new_start:
         raise ProblemException(
-            slug="invalid_range", title="Ende darf nicht vor dem Beginn liegen", status=422
+            slug="invalid_range", title="End must not be before start", status=422
         )
     target = as_utc_instant(occurrence_start)
     if any(as_utc_instant(dt) == target for dt in event.exdates):
-        raise ProblemException(slug="occurrence_cancelled", title="Termin ist abgesagt", status=422)
+        raise ProblemException(slug="occurrence_cancelled", title="Event is cancelled", status=422)
     overrides = dict(event.overrides or {})
     overrides[occurrence_key(occurrence_start)] = {
         "starts_at": as_utc_instant(new_start).isoformat(),
@@ -871,7 +867,7 @@ async def get_subscription(
     """Fetch one of the caller's subscriptions (404 if missing, soft-deleted, or foreign)."""
     sub = await session.get(ExternalCalendarSubscription, subscription_id)
     if sub is None or sub.deleted_at is not None or sub.member_id != member_id:
-        raise ProblemException(slug="not_found", title="Abo nicht gefunden", status=404)
+        raise ProblemException(slug="not_found", title="Subscription not found", status=404)
     return sub
 
 
@@ -907,7 +903,9 @@ async def _reject_duplicate_url(
         stmt = stmt.where(ExternalCalendarSubscription.id != exclude_id)
     if await session.scalar(stmt) is not None:
         raise ProblemException(
-            slug="subscription_exists", title="Abo für diese URL existiert bereits", status=409
+            slug="subscription_exists",
+            title="A subscription for this URL already exists",
+            status=409,
         )
 
 
@@ -956,7 +954,7 @@ async def update_subscription(
     sub = await get_subscription(session, member_id=member_id, subscription_id=subscription_id)
     if sub.version != expected_version:
         raise ProblemException(
-            slug="precondition_failed", title="Abo zwischenzeitlich geändert", status=412
+            slug="precondition_failed", title="Subscription was changed in the meantime", status=412
         )
     if data.caldav_url is not None and data.caldav_url != sub.caldav_url:
         await _reject_duplicate_url(
@@ -1015,10 +1013,12 @@ async def check_subscription(
         if box is None:
             raise ProblemException(
                 slug="crypto_unconfigured",
-                title="Verschlüsselung nicht konfiguriert",
+                title="Encryption not configured",
                 status=503,
-                detail="Diese Funktion braucht einen Server-Schlüssel (CUSTODE_CRYPTO_KEY). "
-                "Bitte den Betreiber kontaktieren.",
+                detail=(
+                    "This feature needs a server key (CUSTODE_CRYPTO_KEY). "
+                    "Please contact the operator."
+                ),
             )
         try:
             username, password = decode_credentials(box, sub.creds_enc)
