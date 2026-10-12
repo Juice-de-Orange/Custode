@@ -129,6 +129,8 @@ uv --directory backend run pytest            # ~5 min, braucht Docker (Testconta
 npm --prefix web run lint && npm --prefix web run typecheck
 npm --prefix web run test && npm --prefix web run build
 npm --prefix web run size && npm --prefix web run check:pwa && npm --prefix web run lhci
+# Browser (laufender Stack mit web/e2e/compose.e2e.yml, siehe CONTRIBUTING.md)
+npm --prefix web run e2e
 
 # Vertrag: regenerieren und auf leeren Diff prüfen
 make openapi && git diff --exit-code -- backend/openapi.json web/src/api

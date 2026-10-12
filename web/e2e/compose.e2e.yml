@@ -1,0 +1,23 @@
+# Browser tests (web/e2e, the `e2e` job in .github/workflows/ci.yml): the quick-start stack with the
+# code under test instead of the published images — the api image built from ./backend, the web
+# app served from web/dist (run `npm --prefix web run build` first). Layered after
+# docker-compose.prod.yml and docker-compose.quickstart.yml; relative paths resolve from the
+# repository root, the directory of the first file.
+services:
+  migrate:
+    image: custode-api:e2e
+    pull_policy: build
+  api:
+    image: custode-api:e2e
+    pull_policy: build
+  worker:
+    image: custode-api:e2e
+    pull_policy: build
+  scheduler:
+    image: custode-api:e2e
+    pull_policy: build
+  web:
+    image: caddy:2-alpine
+    build: !reset null
+    volumes:
+      - ./web/dist:/usr/share/caddy:ro

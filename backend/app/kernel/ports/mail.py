@@ -9,6 +9,10 @@ MailLanguage = Literal["de", "en"]
 
 
 class MailPort(Protocol):
+    #: False for the Null adapter (no SMTP host configured): nothing ever leaves the server, so
+    #: the API must not claim a mail was sent (``mail_unavailable``, ``MeResponse.mail_enabled``).
+    enabled: bool
+
     async def send(self, *, to: str, subject: str, body_md: str) -> bool: ...
 
 

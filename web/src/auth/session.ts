@@ -39,11 +39,19 @@ export async function fetchMe(): Promise<MeResponse | null> {
   const { data, error, response } = await client.get({ url: "/v1/auth/me" });
   if (error) {
     if (response?.status === 401) return null; // not authenticated (after a silent refresh attempt)
+    if (!response) {
+      // No answer at all: the device is offline. The installed app still opens on the session
+      // last seen here, so the offline shopping list works after a reload (README). Lazy import:
+      // keeps Dexie out of the eager shell.
+      const remembered = await import("../shopping/db").then((m) => m.rememberedSession());
+      if (remembered) return remembered;
+    }
     throw toProblem(error, response?.status); // transient/server error -> ErrorState, not a logout
   }
   // Any signed-in session re-enables shopping writes (blocked by the logout purge so an
-  // in-flight pull cannot repopulate the cache, ADR-0078). Covers every login path.
-  void import("../shopping/db").then((m) => m.unblockShoppingWrites());
+  // in-flight pull cannot repopulate the cache, ADR-0078) and is remembered for an offline
+  // start. Covers every login path.
+  void import("../shopping/db").then((m) => m.signedIn(data as MeResponse));
   return data as MeResponse;
 }
 
@@ -71,7 +79,15 @@ async function postLogout(): Promise<void> {
 export const ME_QUERY_KEY = ["auth", "me"] as const;
 
 export function useSession() {
-  return useQuery({ queryKey: ME_QUERY_KEY, queryFn: fetchMe, staleTime: 0 });
+  // "offlineFirst": try once even offline, so fetchMe can fall back to the remembered session
+  // instead of the query pausing (and every screen waiting) until the network returns. Back
+  // online, refetch-on-reconnect replaces it with the server's answer.
+  return useQuery({
+    queryKey: ME_QUERY_KEY,
+    queryFn: fetchMe,
+    staleTime: 0,
+    networkMode: "offlineFirst",
+  });
 }
 
 export function useLogin() {
@@ -128,7 +144,7 @@ export function useLogout() {
 
 // Passwordless login (WebAuthn, ADR-0023): fetch assertion options, run the browser
 // ceremony, post the credential. The flow cookie set by /begin rides along (same-origin).
-async function passkeyLogin(): Promise<void> {
+async function passkeyLogin(): Promise<SessionResponse> {
   const begin = await client.post({ url: "/v1/auth/passkeys/login/begin" });
   if (begin.error) throw toProblem(begin.error, begin.response?.status);
   const { options } = begin.data as { options: ServerAssertionOptions };
@@ -139,6 +155,7 @@ async function passkeyLogin(): Promise<void> {
     body: { credential: assertionToJson(credential) },
   });
   if (complete.error) throw toProblem(complete.error, complete.response?.status);
+  return complete.data as SessionResponse;
 }
 
 export function usePasskeyLogin() {
@@ -325,8 +342,11 @@ export function useResetPassword() {
 
 // ------------------------------------------------------------------ e-mail verification (S9b)
 
+// Throws on a refusal: a swallowed error read as "sent" — also for ``mail_unavailable``, the
+// answer of a server without SMTP.
 async function postRequestEmailVerification(): Promise<void> {
-  await client.post({ url: "/v1/auth/email/verify/request" });
+  const { error, response } = await client.post({ url: "/v1/auth/email/verify/request" });
+  if (error) throw toProblem(error, response?.status);
 }
 
 async function postConfirmEmail(token: string): Promise<void> {

@@ -6,6 +6,18 @@ history (June–September 2026, German) is not part of the public repository.
 
 ## [Unreleased]
 
+### Fixed
+
+- The shopping list works offline as promised: items added or checked off without a connection are
+  saved on the device and queued, the list opens after a reload or restart while still offline,
+  and everything syncs when the connection returns. Before, offline changes were held only in
+  memory and an offline reload hung at "Loading …" and lost them.
+- Without SMTP the account page no longer claims "Verification e-mail sent.": it says that this
+  server does not send e-mail. `/v1/auth/me` reports `mail_enabled`, and a resend answers
+  `503 mail_unavailable`.
+- Signing in lands a household member on Today instead of the account page.
+- `/v1/demo` answers `{"enabled": false}` on a normal instance instead of a 404 on every page load.
+
 ## [0.1.0] - 2026-10-12
 
 The first public release of Custode, under AGPL-3.0. It is a beta: see the README's status box

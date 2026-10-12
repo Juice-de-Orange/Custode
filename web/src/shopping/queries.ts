@@ -6,6 +6,12 @@ import { enqueue, sync } from "./sync";
 
 export const SHOPPING_QUERY_KEY = ["shopping"] as const;
 
+// Every hook here reads or writes Dexie only; the network push/pull runs fire-and-forget inside
+// the sync engine. React Query's default networkMode "online" would PAUSE these queryFns and
+// mutationFns while the device is offline — an item added in the shop then never reached Dexie
+// or the outbox, and the list never rendered after an offline reload (BUGLOG 2026-10-12).
+const LOCAL_ONLY = "always" as const;
+
 function newId(): string {
   return crypto.randomUUID();
 }
@@ -26,6 +32,7 @@ export async function recordCatalog(label: string, category: string | null): Pro
 export function useShoppingLists() {
   return useQuery({
     queryKey: [...SHOPPING_QUERY_KEY, "lists"],
+    networkMode: LOCAL_ONLY,
     // Sort in JS: ``lists`` only indexes the primary key ("id"), and Dexie's orderBy() THROWS
     // SchemaError on non-indexed keys — which silently error-states this query and blanks the
     // whole shopping UI (BUGLOG 2026-07-19). A handful of lists needs no index.
@@ -37,6 +44,7 @@ export function useShoppingLists() {
 export function useShoppingItems(listId: string | undefined) {
   return useQuery({
     queryKey: [...SHOPPING_QUERY_KEY, "items", listId ?? null],
+    networkMode: LOCAL_ONLY,
     queryFn: () =>
       listId
         ? db.items.where("list_id").equals(listId).toArray()
@@ -50,6 +58,7 @@ export function useShoppingItems(listId: string | undefined) {
 export function useShoppingOpenCount() {
   return useQuery({
     queryKey: [...SHOPPING_QUERY_KEY, "open-count"],
+    networkMode: LOCAL_ONLY,
     queryFn: () => db.items.filter((item) => !item.checked).count(),
   });
 }
@@ -58,6 +67,7 @@ export function useShoppingOpenCount() {
 export function useShoppingCatalog() {
   return useQuery({
     queryKey: [...SHOPPING_QUERY_KEY, "catalog"],
+    networkMode: LOCAL_ONLY,
     queryFn: () => db.catalog.orderBy("count").reverse().limit(16).toArray(),
   });
 }
@@ -66,6 +76,7 @@ export function useShoppingCatalog() {
 export function useShoppingBasics() {
   return useQuery({
     queryKey: [...SHOPPING_QUERY_KEY, "basics"],
+    networkMode: LOCAL_ONLY,
     queryFn: () => db.basics.orderBy("label").toArray(),
   });
 }
@@ -86,6 +97,7 @@ export function useShoppingActions() {
   const invalidate = () => qc.invalidateQueries({ queryKey: SHOPPING_QUERY_KEY });
 
   return useMutation({
+    networkMode: LOCAL_ONLY,
     mutationFn: async (action: ShoppingAction): Promise<string | void> => {
       if (action.type === "createList") {
         const id = newId();

@@ -66,6 +66,8 @@ export const messages: Record<string, string> = {
   "verify.banner.text": "Bitte bestätige deine E-Mail-Adresse.",
   "verify.banner.resend": "Bestätigungs-Mail erneut senden",
   "verify.banner.resent": "Bestätigungs-Mail gesendet.",
+  "verify.banner.noMail":
+    "Dieser Server verschickt keine E-Mails (kein SMTP), die Adresse lässt sich hier nicht bestätigen. Davon hängt nichts ab.",
   "profile.title": "Profil",
   "profile.link": "Profil bearbeiten",
   "profile.workHours": "Arbeitszeiten",

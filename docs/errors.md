@@ -117,6 +117,7 @@ A `slug=` that is not a literal escapes the gate and has to be acknowledged ther
 | `too_many_attempts` | 429 | Too many failed PIN attempts — the 429 that is actually built |
 | `reset_invalid` | 400 | Password-reset token unknown, used or expired |
 | `verify_invalid` | 400 | E-mail verification token unknown, used or expired |
+| `mail_unavailable` | 503 | Resend of the verification e-mail on a server without SMTP (null adapter) — no mail can be sent; `/v1/auth/me` reports `mail_enabled: false` |
 | `invite_expired` | 410 | Invitation code expired |
 | `invite_exhausted` | 409 | Invitation code is used up (`max_uses`) |
 | `already_member` | 409 | Already a member of this household |

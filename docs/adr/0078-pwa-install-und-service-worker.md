@@ -95,3 +95,13 @@ beider Blöcke um `worker-src 'self'` ergänzt.
 - SW-Registrierung + Toast kosten ~3 kB gzip im Eager-Payload (Budget 220 kB, Stand ~197).
 - Dev-SW nur opt-in (`SW_DEV=true`), sonst gilt: bauen + `npm run preview` testen.
 - Tests: Update-Toast (Render, Callbacks, axe), Logout-Purge (alle Dexie-Tabellen leer).
+
+## Nachtrag 2026-10-12: Offline-Start braucht eine Session
+Der First-Visitor-Check nach v0.1.0 zeigte: offline neu geladen hing die App bei „Loading …".
+`/v1/auth/me` ist offline nicht erreichbar, und der SW cached `/v1` bewusst nicht (Abweichung 1
+bleibt). Deshalb liegt die **zuletzt gesehene `/me`-Antwort** in der Shopping-Dexie (`meta`,
+Schlüssel `session`) — in derselben Datenbank, die der Logout-Purge leert, also ohne neuen
+Datenschutz-Restposten. `fetchMe` greift **nur** darauf zurück, wenn die Anfrage gar keine Antwort
+bekam (offline); jede Server-Antwort, auch 401, gewinnt, und Refetch-on-Reconnect ersetzt den
+Wert. Dazu laufen die rein lokalen Einkaufs-Hooks mit `networkMode: "always"` (BUGLOG
+2026-10-12). Nachweis: `web/e2e/offline-shopping.e2e.ts` im CI-Job `e2e`.

@@ -14,6 +14,7 @@ npm run build       # tsc --noEmit && vite build
 npm run check:pwa   # PWA-Gate: Manifest/SW/Brand-Regel/Ops-Ausschluss (nach build)
 npm run size        # Bundle-Size-Gate (CI-blockierend, nach build)
 npm run lhci        # Lighthouse-Budgets (CI-blockierend)
+npm run e2e         # Playwright gegen einen laufenden Stack (CONTRIBUTING.md, CI-Job `e2e`)
 ```
 
 Regeln: keine hartcodierten Strings (Lingui), **Markenname nur über

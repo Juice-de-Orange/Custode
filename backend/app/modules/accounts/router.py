@@ -290,7 +290,11 @@ async def logout(request: Request, response: Response) -> None:
 
 
 @auth_router.get("/me")
-async def me(principal: CurrentPrincipal, session: ScopedSession) -> MeResponse:
+async def me(
+    principal: CurrentPrincipal,
+    session: ScopedSession,
+    mail: Annotated[MailPort, Depends(get_mail)],
+) -> MeResponse:
     user = await session.get(User, principal.user_id)
     if user is None:  # pragma: no cover - a valid principal implies an existing user
         raise ProblemException(slug="unauthorized", title="Not signed in", status=401)
@@ -313,6 +317,7 @@ async def me(principal: CurrentPrincipal, session: ScopedSession) -> MeResponse:
         totp_enabled=user.totp_enabled,
         recovery_codes_remaining=remaining,
         email_verified=user.email_verified_at is not None,
+        mail_enabled=mail.enabled,
         flags=flags,
     )
 
@@ -344,6 +349,11 @@ async def email_verify_request(
     mail: Annotated[MailPort, Depends(get_mail)],
 ) -> None:
     # Resend the verification e-mail for the logged-in user (no-op if already verified).
+    # Without SMTP nothing would be sent — say so instead of a 204 the web reads as "sent".
+    if not mail.enabled:
+        raise ProblemException(
+            slug="mail_unavailable", title="This server does not send e-mail", status=503
+        )
     await service.request_email_verification(
         session, user_id=principal.user_id, mail=mail, base_url=get_settings().public_base_url
     )

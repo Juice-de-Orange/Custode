@@ -36,6 +36,8 @@ class NullPush:
 
 
 class NullMail:
+    enabled = False  # no SMTP host: callers that would promise a mail say so instead
+
     async def send(self, *, to: str, subject: str, body_md: str) -> bool:
         _log.debug("null_mail_dropped", to=to)
         return True  # accepted as no-op

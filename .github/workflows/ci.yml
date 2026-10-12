@@ -81,6 +81,48 @@ jobs:
         working-directory: web
         run: npm run lhci
 
+  # Browser test of the offline shopping list (web/e2e, Chromium): the built web app with its
+  # service worker against the quick-start stack, api built from this commit. The promise "works
+  # offline in the shop" broke once with every other gate green (BUGLOG 2026-10-12).
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # Shell environment wins over the COMPOSE_FILE line ./setup writes into .env.
+      COMPOSE_FILE: docker-compose.prod.yml:docker-compose.quickstart.yml:web/e2e/compose.e2e.yml
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install (incl. Chromium for Playwright)
+        working-directory: web
+        run: npm ci && npx playwright install --with-deps chromium
+      - name: Build the web app
+        working-directory: web
+        run: npm run build
+      - name: Start the stack (api from this commit, web from web/dist)
+        run: |
+          ./setup
+          docker compose up -d --build
+          for _ in $(seq 1 90); do
+            curl -sf -o /dev/null http://localhost:8080/readyz && exit 0
+            sleep 2
+          done
+          docker compose ps
+          docker compose logs --no-color --tail=100 migrate api
+          exit 1
+      - name: Playwright
+        working-directory: web
+        run: npm run e2e
+      - name: Stack logs on failure
+        if: failure()
+        run: docker compose logs --no-color --tail=200 api web
+
   contract:
     runs-on: ubuntu-latest
     timeout-minutes: 10

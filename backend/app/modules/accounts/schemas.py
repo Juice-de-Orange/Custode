@@ -61,6 +61,9 @@ class MeResponse(BaseModel):
     totp_enabled: bool
     recovery_codes_remaining: int
     email_verified: bool
+    #: Whether this server sends e-mail at all (false without SMTP: no verification mail, no
+    #: password reset). The web explains the missing verification instead of offering a resend.
+    mail_enabled: bool
     flags: dict[str, bool]
 
 

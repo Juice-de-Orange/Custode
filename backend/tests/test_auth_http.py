@@ -20,6 +20,7 @@ from httpx import ASGITransport, AsyncClient
 from soft_webauthn import SoftWebauthnDevice
 
 import app.kernel.db.engine as engine_mod
+from app.adapters.null import NullMail
 from app.kernel.auth import totp
 from app.kernel.ports.mail import get_mail
 from app.main import create_app
@@ -834,6 +835,8 @@ async def test_login_events_user_scoped(app: FastAPI) -> None:
 class _CaptureMail:
     """Test mail adapter: records sends so a test can read the reset link/token from the body."""
 
+    enabled = True
+
     def __init__(self) -> None:
         self.sent: list[tuple[str, str, str]] = []
 
@@ -947,6 +950,26 @@ async def test_email_verification_resend_and_invalid(app: FastAPI) -> None:
         bad = await c.post("/v1/auth/email/verify/confirm", json={"token": "nope-nope-nope"})
         assert bad.status_code == 400
         assert bad.json()["type"].endswith("verify_invalid")
+
+
+async def test_me_reports_whether_this_server_sends_mail(app: FastAPI) -> None:
+    app.dependency_overrides[get_mail] = lambda: _CaptureMail()
+    async with _client(app) as c:
+        await _register(c)
+        assert (await c.get("/v1/auth/me")).json()["mail_enabled"] is True
+
+
+async def test_without_mail_a_resend_is_refused_instead_of_claimed(app: FastAPI) -> None:
+    """The quick start runs without SMTP (Null adapter). The resend used to answer 204 and the
+    banner said "Verification e-mail sent." — for a mail that never left the server. Now /me says
+    there is no mail, and a resend is an honest ``mail_unavailable``."""
+    app.dependency_overrides[get_mail] = lambda: NullMail()
+    async with _client(app) as c:
+        await _register(c)
+        assert (await c.get("/v1/auth/me")).json()["mail_enabled"] is False
+        resend = await c.post("/v1/auth/email/verify/request", headers=_csrf(c))
+        assert resend.status_code == 503
+        assert resend.json()["type"].endswith("mail_unavailable")
 
 
 async def test_email_verification_token_single_use(app: FastAPI) -> None:

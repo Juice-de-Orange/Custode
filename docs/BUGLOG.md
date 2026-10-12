@@ -17,6 +17,34 @@ Eintragsschema:
 
 ---
 
+## 2026-10-12 — Einkaufsliste offline: Eintrag verschwand, Neustart offline hing bei „Loading …"  (Modul: web/shopping, web/auth, Schwere: hoch)
+- **Symptom:** First-Visitor-Check nach v0.1.0 (frischer Clone, README wörtlich, Playwright mit
+  Offline-Emulation): offline hinzugefügte Artikel erschienen nicht, die Outbox blieb leer,
+  Abhaken offline tat nichts. Ein Neuladen/Öffnen offline hing dauerhaft bei „Loading …", und der
+  Artikel war danach verloren (auch online nicht auf dem Server). Ohne Neuladen kam er beim
+  Wiederverbinden doch an — das hat das Problem bei Online-Tests verdeckt. Damit war das
+  README-Versprechen „works offline in the shop" gebrochen.
+- **Ursache:** Zwei Pausen von TanStack Query, beide durch den Default `networkMode: "online"`.
+  (1) `useShoppingActions` und die Dexie-Queries sind rein lokal (Dexie + Outbox; Push/Pull läuft
+  fire-and-forget), wurden offline aber **pausiert** — die `mutationFn`, die Dexie und die Outbox
+  schreibt, lief gar nicht erst; eine pausierte Mutation lebt nur im Speicher und stirbt mit dem
+  Neuladen. (2) Die Einkaufsseite wartet auf `useSession()`; `/v1/auth/me` ist offline nicht
+  erreichbar und der Service Worker cached `/v1` bewusst nicht (ADR-0078) → Query pausiert,
+  `isLoading` für immer.
+- **Fix:** Einkaufs-Hooks mit `networkMode: "always"` (`web/src/shopping/queries.ts`). Die Session
+  läuft `offlineFirst`; bekommt `/v1/auth/me` **gar keine** Antwort, fällt `fetchMe` auf die zuletzt
+  auf diesem Gerät gesehene Session zurück (`rememberSession` in der Shopping-Dexie-`meta`, vom
+  Logout-Purge mitgelöscht). Jede Server-Antwort (auch 401) gewinnt; zurück online ersetzt
+  Refetch-on-Reconnect den Wert.
+- **Regressionstest:** `web/src/test/shopping-offline.test.ts` (Hooks bei `onlineManager` offline —
+  vorher Timeout/pausiert, jetzt grün) und `web/e2e/offline-shopping.e2e.ts` (Chromium gegen den
+  laufenden Stack: offline hinzufügen + abhaken, offline neu laden, online → Server hat beides; vorher
+  rot bei „Oat milk" nicht sichtbar). Neuer CI-Job `e2e`.
+- **Lehre:** Ein lokales `queryFn`/`mutationFn` braucht in TanStack Query ausdrücklich einen
+  `networkMode`, sonst gilt es als Netzwerkzugriff. Ein Offline-Versprechen gilt erst mit einem
+  Browsertest **offline mit Neuladen** als geprüft — Unit-Tests der Sync-Engine allein haben es nicht
+  gesehen.
+
 ## 2026-10-12 — Zeitpunkte ohne Offset beantwortete der Kalender mit 500  (Modul: calendar, scheduling, Schwere: mittel)
 - **Symptom:** `GET /v1/calendar/events?from=2026-07-01T00:00:00&to=2026-07-08T00:00:00` — also
   `from`/`to` **ohne** Zeitzonen-Offset — lieferte 500 `internal` mit Referenzcode, sobald der

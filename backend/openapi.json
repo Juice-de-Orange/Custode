@@ -11010,6 +11010,10 @@
             "type": "boolean",
             "title": "Email Verified"
           },
+          "mail_enabled": {
+            "type": "boolean",
+            "title": "Mail Enabled"
+          },
           "flags": {
             "additionalProperties": {
               "type": "boolean"
@@ -11028,6 +11032,7 @@
           "totp_enabled",
           "recovery_codes_remaining",
           "email_verified",
+          "mail_enabled",
           "flags"
         ],
         "title": "MeResponse"

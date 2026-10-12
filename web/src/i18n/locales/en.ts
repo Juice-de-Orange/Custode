@@ -66,6 +66,8 @@ export const messages: Record<string, string> = {
   "verify.banner.text": "Please verify your e-mail address.",
   "verify.banner.resend": "Resend verification e-mail",
   "verify.banner.resent": "Verification e-mail sent.",
+  "verify.banner.noMail":
+    "This server sends no e-mail (no SMTP), so the address cannot be verified here. Nothing depends on it.",
   "profile.title": "Profile",
   "profile.link": "Edit profile",
   "profile.workHours": "Working hours",
