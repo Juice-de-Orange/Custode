@@ -77,7 +77,7 @@ async def get_note(session: AsyncSession, *, note_id: uuid.UUID) -> Note:
     """One *active* note of the active household (RLS hides other households -> 404)."""
     note = await session.get(Note, note_id)
     if note is None or note.deleted_at is not None:
-        raise ProblemException(slug="not_found", title="Notiz nicht gefunden", status=404)
+        raise ProblemException(slug="not_found", title="Note not found", status=404)
     return note
 
 
@@ -103,7 +103,7 @@ async def update_note(
     note = await get_note(session, note_id=note_id)
     if note.version != expected_version:
         raise ProblemException(
-            slug="precondition_failed", title="Notiz zwischenzeitlich geändert", status=412
+            slug="precondition_failed", title="Note was changed in the meantime", status=412
         )
     # Archive the pre-edit content (only when title/body actually change — a pure pin toggle is not
     # a content edit and should not consume a version slot).
@@ -155,7 +155,7 @@ async def restore_version(
         )
     )
     if version is None:
-        raise ProblemException(slug="not_found", title="Version nicht gefunden", status=404)
+        raise ProblemException(slug="not_found", title="Version not found", status=404)
     await _snapshot_and_prune(session, note=note, edited_by=author_id)
     note.title = version.title
     note.body_md = version.body_md
@@ -201,7 +201,7 @@ async def untrash_note(
     notes list refreshes. RLS keeps this scoped to the active household."""
     note = await session.get(Note, note_id)
     if note is None or note.deleted_at is None:
-        raise ProblemException(slug="not_found", title="Notiz nicht im Papierkorb", status=404)
+        raise ProblemException(slug="not_found", title="Note is not in the trash", status=404)
     note.deleted_at = None
     await emit(
         session, type="note.updated", household_id=household_id, payload={"note_id": str(note_id)}

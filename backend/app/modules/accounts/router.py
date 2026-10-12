@@ -164,7 +164,11 @@ async def register(
         response, settings, access_token=access_token, refresh_token=result.refresh_token
     )
     await service.send_verification_email(
-        user_id=user_id, email=payload.email, mail=mail, base_url=settings.public_base_url
+        user_id=user_id,
+        email=payload.email,
+        locale=payload.locale,
+        mail=mail,
+        base_url=settings.public_base_url,
     )
     return SessionResponse(user_id=user_id)
 
@@ -224,7 +228,7 @@ async def refresh(request: Request, response: Response) -> SessionResponse:
     settings = get_settings()
     refresh_token = request.cookies.get(refresh_cookie_name())
     if not refresh_token:
-        raise ProblemException(slug="invalid_token", title="Sitzung ungültig", status=401)
+        raise ProblemException(slug="invalid_token", title="Invalid session", status=401)
     old_access = request.cookies.get(access_cookie_name(settings))
     try:
         result = await service.refresh(
@@ -289,7 +293,7 @@ async def logout(request: Request, response: Response) -> None:
 async def me(principal: CurrentPrincipal, session: ScopedSession) -> MeResponse:
     user = await session.get(User, principal.user_id)
     if user is None:  # pragma: no cover - a valid principal implies an existing user
-        raise ProblemException(slug="unauthorized", title="Nicht angemeldet", status=401)
+        raise ProblemException(slug="unauthorized", title="Not signed in", status=401)
     remaining = await service.count_recovery_codes(session, user_id=principal.user_id)
     household = (
         await session.get(Household, principal.household_id)
@@ -405,7 +409,7 @@ async def regenerate_recovery_codes(
 ) -> RecoveryCodesResponse:
     user = await session.get(User, principal.user_id)
     if user is None or not user.totp_enabled:
-        raise ProblemException(slug="totp_not_enabled", title="2FA ist nicht aktiv", status=409)
+        raise ProblemException(slug="totp_not_enabled", title="2FA is not enabled", status=409)
     codes = await service.generate_recovery_codes(session, user_id=principal.user_id)
     return RecoveryCodesResponse(recovery_codes=codes)
 
@@ -416,7 +420,7 @@ async def passkeys_register_begin(
 ) -> PasskeyOptions:
     user = await session.get(User, principal.user_id)
     if user is None:  # pragma: no cover - a valid principal implies a user
-        raise ProblemException(slug="unauthorized", title="Nicht angemeldet", status=401)
+        raise ProblemException(slug="unauthorized", title="Not signed in", status=401)
     rp_id, _origin = rp_from_request(request)
     options_json = await service.passkey_register_begin(
         session,
@@ -466,7 +470,7 @@ async def passkeys_login_complete(
     flow_id = request.cookies.get(passkey_flow_cookie_name())
     if not flow_id:
         raise ProblemException(
-            slug="passkey_challenge_expired", title="Challenge abgelaufen", status=400
+            slug="passkey_challenge_expired", title="Challenge expired", status=400
         )
     rp_id, origin = rp_from_request(request)
     device_label, user_agent, ip = _client_meta(request)
@@ -572,7 +576,7 @@ async def revoke_session(
     stale ``family_id`` is a 404, never a cross-user revoke."""
     revoked = await service.revoke_session(session, user_id=principal.user_id, family_id=family_id)
     if not revoked:
-        raise ProblemException(slug="not_found", title="Sitzung nicht gefunden", status=404)
+        raise ProblemException(slug="not_found", title="Session not found", status=404)
     await access.revoke_access_family(family_id)
 
 
@@ -652,7 +656,7 @@ async def switch_household(
 ) -> SessionResponse:
     role = await service.get_active_role(user_id=principal.user_id, household_id=household_id)
     if role is None:
-        raise ProblemException(slug="forbidden", title="Kein Mitglied dieses Haushalts", status=403)
+        raise ProblemException(slug="forbidden", title="Not a member of this household", status=403)
     settings = get_settings()
     await _activate_household(
         request, response, settings, principal=principal, household_id=household_id, role=role
@@ -684,7 +688,7 @@ async def create_household_invite(
     payload: CreateInviteRequest, session: ScopedSession, principal: AdminPrincipal
 ) -> InviteResponse:
     if principal.household_id is None:  # pragma: no cover - admin implies an active household
-        raise ProblemException(slug="forbidden", title="Kein aktiver Haushalt", status=403)
+        raise ProblemException(slug="forbidden", title="No active household", status=403)
     expires_at = datetime.now(UTC) + timedelta(hours=payload.expires_in_hours)
     code = await service.create_invite(
         session,
@@ -700,7 +704,7 @@ async def create_household_invite(
 async def get_household_digest(session: ScopedSession, principal: AdminPrincipal) -> DigestSetting:
     """Whether the weekly digest is enabled for the active household (admin)."""
     if principal.household_id is None:  # pragma: no cover - admin implies an active household
-        raise ProblemException(slug="forbidden", title="Kein aktiver Haushalt", status=403)
+        raise ProblemException(slug="forbidden", title="No active household", status=403)
     enabled = await service.get_digest_enabled(session, household_id=principal.household_id)
     return DigestSetting(enabled=enabled)
 
@@ -711,7 +715,7 @@ async def patch_household_digest(
 ) -> DigestSetting:
     """Enable/disable the weekly digest for the active household (admin, CSRF)."""
     if principal.household_id is None:  # pragma: no cover - admin implies an active household
-        raise ProblemException(slug="forbidden", title="Kein aktiver Haushalt", status=403)
+        raise ProblemException(slug="forbidden", title="No active household", status=403)
     enabled = await service.set_digest_enabled(
         session, household_id=principal.household_id, enabled=payload.enabled
     )
@@ -743,7 +747,7 @@ async def change_member_role(
     principal: AdminPrincipal,
 ) -> MemberResponse:
     if principal.household_id is None:  # pragma: no cover - admin implies an active household
-        raise ProblemException(slug="forbidden", title="Kein aktiver Haushalt", status=403)
+        raise ProblemException(slug="forbidden", title="No active household", status=403)
     families = await service.change_role(
         session,
         membership_id=membership_id,
@@ -756,7 +760,7 @@ async def change_member_role(
     await service.burn_access_tokens(families)
     member = await session.get(Membership, membership_id)
     if member is None:  # pragma: no cover - change_role validated existence
-        raise ProblemException(slug="not_found", title="Mitgliedschaft nicht gefunden", status=404)
+        raise ProblemException(slug="not_found", title="Membership not found", status=404)
     user = await session.get(User, member.user_id)
     return MemberResponse(
         membership_id=member.id,
@@ -775,7 +779,7 @@ async def remove_household_member(
     membership_id: uuid.UUID, session: ScopedSession, principal: AdminPrincipal
 ) -> None:
     if principal.household_id is None:  # pragma: no cover - admin implies an active household
-        raise ProblemException(slug="forbidden", title="Kein aktiver Haushalt", status=403)
+        raise ProblemException(slug="forbidden", title="No active household", status=403)
     families = await service.remove_member(
         session, membership_id=membership_id, household_id=principal.household_id
     )
@@ -797,7 +801,7 @@ async def leave_household(session: ScopedSession, principal: CurrentPrincipal) -
     Mitgliedschaft. Bis zu diesem Slice konnte nur ein Admin jemanden entfernen; wer selbst gehen
     wollte, musste darum bitten."""
     if principal.household_id is None:
-        raise ProblemException(slug="forbidden", title="Kein aktiver Haushalt", status=403)
+        raise ProblemException(slug="forbidden", title="No active household", status=403)
     families = await service.leave_household(
         session, user_id=principal.user_id, household_id=principal.household_id
     )
@@ -815,10 +819,10 @@ async def dissolve_preview(session: ScopedSession, principal: AdminPrincipal) ->
     trifft und wie viele Kinder-Konten mit enden.
     """
     if principal.household_id is None:  # pragma: no cover - admin impliziert einen Haushalt
-        raise ProblemException(slug="forbidden", title="Kein aktiver Haushalt", status=403)
+        raise ProblemException(slug="forbidden", title="No active household", status=403)
     household = await session.get(Household, principal.household_id)
     if household is None or household.deleted_at is not None:
-        raise ProblemException(slug="not_found", title="Haushalt nicht gefunden", status=404)
+        raise ProblemException(slug="not_found", title="Household not found", status=404)
     members = await service.list_members(session)
     return DissolvePreview(
         household_name=household.name,
@@ -842,16 +846,16 @@ async def dissolve_household(
     wäre ein Zirkel.
     """
     if principal.household_id is None:  # pragma: no cover - admin impliziert einen Haushalt
-        raise ProblemException(slug="forbidden", title="Kein aktiver Haushalt", status=403)
+        raise ProblemException(slug="forbidden", title="No active household", status=403)
     household = await session.get(Household, principal.household_id)
     if household is None:
-        raise ProblemException(slug="not_found", title="Haushalt nicht gefunden", status=404)
+        raise ProblemException(slug="not_found", title="Household not found", status=404)
     if payload.confirm_name.strip() != household.name.strip():
         raise ProblemException(
             slug="name_mismatch",
-            title="Name stimmt nicht",
+            title="Name does not match",
             status=422,
-            detail="Bitte den Haushaltsnamen genau so eingeben, wie er oben steht.",
+            detail="Please type the household name exactly as shown.",
         )
     families = await service.dissolve_household(
         session, household_id=principal.household_id, actor_id=principal.user_id
@@ -869,7 +873,7 @@ async def create_household_child(
 ) -> ChildResponse:
     """Admin creates a child account (username + PIN, no e-mail) with recorded parental consent."""
     if principal.household_id is None:  # pragma: no cover - admin implies an active household
-        raise ProblemException(slug="forbidden", title="Kein aktiver Haushalt", status=403)
+        raise ProblemException(slug="forbidden", title="No active household", status=403)
     child_id = await service.create_child(
         household_id=principal.household_id,
         granted_by=principal.user_id,

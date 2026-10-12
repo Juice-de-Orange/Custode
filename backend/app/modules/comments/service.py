@@ -64,12 +64,12 @@ async def update_comment(
     Emits ``comment.updated``."""
     comment = await session.get(Comment, comment_id)
     if comment is None or comment.deleted_at is not None:
-        raise ProblemException(slug="not_found", title="Kommentar nicht gefunden", status=404)
+        raise ProblemException(slug="not_found", title="Comment not found", status=404)
     if comment.author_id != author_id:
-        raise ProblemException(slug="forbidden", title="Nicht dein Kommentar", status=403)
+        raise ProblemException(slug="forbidden", title="Not your comment", status=403)
     if comment.version != expected_version:
         raise ProblemException(
-            slug="precondition_failed", title="Kommentar zwischenzeitlich geändert", status=412
+            slug="precondition_failed", title="Comment was changed in the meantime", status=412
         )
     comment.body_md = data.body_md
     await emit(session, type="comment.updated", household_id=household_id, payload={})
@@ -85,9 +85,9 @@ async def delete_comment(
     the household. Emits ``comment.deleted``."""
     comment = await session.get(Comment, comment_id)
     if comment is None or comment.deleted_at is not None:
-        raise ProblemException(slug="not_found", title="Kommentar nicht gefunden", status=404)
+        raise ProblemException(slug="not_found", title="Comment not found", status=404)
     if comment.author_id != author_id:
-        raise ProblemException(slug="forbidden", title="Nicht dein Kommentar", status=403)
+        raise ProblemException(slug="forbidden", title="Not your comment", status=403)
     comment.deleted_at = datetime.now(UTC)
     await emit(session, type="comment.deleted", household_id=household_id, payload={})
     await session.flush()

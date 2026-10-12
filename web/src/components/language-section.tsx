@@ -1,16 +1,17 @@
 import { Trans, useLingui } from "@lingui/react";
 import { useState } from "react";
 
-import { getLocalePref, type Locale, LOCALES, setLocalePref } from "../lib/locale";
+import { detectLocale, getLocalePref, type Locale, LOCALES, setLocalePref } from "../lib/locale";
 
 // Interface language (lib/locale): follow the browser, or pin German/English for this browser.
 // A native <select> — the set is closed and tiny. Changing it reloads the page: many components
 // read the catalog at render time without subscribing to a locale change, and a reload is the
-// one way to be sure nothing stale stays on screen.
+// one way to be sure nothing stale stays on screen. `onChanged` receives the language now in
+// effect (the pinned one, or the browser's), which the profile page also stores on the account.
 export function LanguageSection({
   onChanged = () => window.location.reload(),
 }: {
-  onChanged?: () => void;
+  onChanged?: (effective: Locale) => void;
 }) {
   const { i18n } = useLingui();
   const [pref, setPref] = useState<Locale | null>(() => getLocalePref());
@@ -31,7 +32,7 @@ export function LanguageSection({
           const next = LOCALES.find((l) => l === value) ?? null;
           setLocalePref(next);
           setPref(next);
-          onChanged();
+          onChanged(detectLocale());
         }}
         className="block rounded-md border border-stein/40 bg-kalk px-3 py-2 text-tinte focus:border-laurus focus:outline-none focus:ring-2 focus:ring-laurus/40 dark:bg-nacht-2 dark:text-kalk dark:focus:ring-laurus-dark/40"
       >

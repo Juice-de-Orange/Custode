@@ -1,6 +1,7 @@
 # Production reverse proxy: static web + API under one origin (ARCHITECTURE: "web
 # Static via Caddy"). TLS is terminated upstream by the operator's TLS-terminating proxy
-# or tunnel (→ http://web:80 in the Compose network), so Caddy serves plain HTTP on :80.
+# or tunnel (→ http://custode-web:80 in the Compose network, docs/operations.md), so Caddy
+# serves plain HTTP on :80.
 # Dev does NOT use this — the web runs via `npm run dev` and proxies /v1 to the API.
 
 # PWA cache policy (ADR-0078), shared by both site blocks: hashed /assets/* never change →
@@ -16,9 +17,49 @@
 :80 {
     encode zstd gzip
 
+    # Public demo (docs/demo.md, docker-compose.demo.yml sets CUSTODE_DEMO_MODE=on for this
+    # container). The variable is substituted when Caddy reads this file; without it the
+    # expression is "off" == "on" — false, and none of the three lines below applies.
+    @demo expression `"{$CUSTODE_DEMO_MODE:off}" == "on"`
+    # `>`: set after the proxy copied the api's headers — one header, not two.
+    header @demo >X-Robots-Tag "noindex, nofollow"
+    # Caps every body, also chunked ones without Content-Length (the api checks the header).
+    request_body @demo {
+        max_size 262144
+    }
+    @demo_robots {
+        expression `"{$CUSTODE_DEMO_MODE:off}" == "on"`
+        path /robots.txt
+    }
+    handle @demo_robots {
+        header Content-Type "text/plain; charset=utf-8"
+        respond <<ROBOTS
+            User-agent: *
+            Disallow: /
+            ROBOTS 200
+    }
+
     @api path /v1/* /healthz /readyz /metrics
     handle @api {
         reverse_proxy api:8000
+    }
+
+    # The operator's legal texts (docs/operations.md, "Legal pages"), mounted from the host's
+    # legal/ folder. Only imprint/privacy files are served, never the rest of the folder; a
+    # missing file is a plain 404 (the app then says the operator has not provided it) —
+    # NOT the SPA fallback, which would answer 200 with index.html.
+    @legal path_regexp ^/legal/(imprint|privacy)(\.[a-z]{2})?\.md$
+    handle @legal {
+        root * /srv
+        header {
+            Cache-Control "no-cache"
+            X-Content-Type-Options "nosniff"
+            -Server
+        }
+        file_server
+    }
+    handle /legal/* {
+        respond 404
     }
 
     handle {

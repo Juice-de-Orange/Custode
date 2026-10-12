@@ -7,17 +7,22 @@ import { useSession } from "../auth/session";
 import { AppBottomBar, AppSidebar } from "../components/app-nav";
 import { BrandMark } from "../components/brand-mark";
 import { CommandPalette } from "../components/command-palette";
+import { DemoBanner } from "../components/demo-banner";
 import { NoHouseholdState } from "../components/no-household";
 import { OfflineDot } from "../components/offline-dot";
 import { PwaUpdateToast } from "../components/pwa-update-toast";
 import { ThemeToggle } from "../components/theme-toggle";
+import { i18n } from "../i18n";
 import { useRealtime } from "../realtime/useRealtime";
 
 // Routes that work without an active household: account (create/join/switch lives
 // there), personal settings, and the public legal/release pages. Every other module
 // screen is household-scoped and would only produce 403s.
-// Public repository of this AGPL-3.0 application (§13 source offer, linked in the footer).
-const SOURCE_URL = "https://github.com/Juice-de-Orange/Custode";
+// Public repository of this AGPL-3.0 application (§13 source offer, linked in the footer). An
+// operator who runs a MODIFIED version must offer that version's source instead: set
+// CUSTODE_SOURCE_URL in .env (passed to the web build as VITE_SOURCE_URL, docs/operations.md).
+const SOURCE_URL: string =
+  import.meta.env.VITE_SOURCE_URL || "https://github.com/Juice-de-Orange/Custode";
 
 const NO_HOUSEHOLD_OK = new Set([
   "/",
@@ -43,7 +48,7 @@ export function RootLayout() {
     <div className="min-h-screen bg-kalk text-tinte dark:bg-nacht dark:text-kalk">
       {/* Global operator banners (maintenance notices) — quiet bar above everything, P8-S8b. */}
       {(banners.data?.length ?? 0) > 0 ? (
-        <div aria-label="Hinweise" role="region">
+        <div aria-label={i18n._("a11y.notices")} role="region">
           {banners.data?.map((b) => (
             <div
               key={b.id}
@@ -74,11 +79,14 @@ export function RootLayout() {
       {/* Desktop: fixed grouped sidebar; main is offset by its width. */}
       {signedIn ? <AppSidebar onSearch={() => setCmdkOpen(true)} /> : null}
       <div className={signedIn ? "md:pl-60" : ""}>
+        {/* Public demo instances only (docs/demo.md); renders nothing elsewhere. Inside the
+            content column so the fixed desktop sidebar cannot cover it. */}
+        <DemoBanner />
         <main className="mx-auto w-full max-w-3xl px-4 py-8 pb-content-bottom md:px-8 md:py-10 md:pb-10">
           {needsHousehold ? <NoHouseholdState /> : <Outlet />}
         </main>
         <footer className="border-t border-stein/15 px-4 py-4 text-xs text-stein-text md:px-8">
-          <nav aria-label="Rechtliches" className="mx-auto flex max-w-3xl gap-4">
+          <nav aria-label={i18n._("a11y.legalNav")} className="mx-auto flex max-w-3xl gap-4">
             <Link to="/neuigkeiten" className="hover:underline">
               <Trans id="releases.title" />
             </Link>

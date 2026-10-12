@@ -1,12 +1,24 @@
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Literal, Protocol
 
 from fastapi import Request
+
+#: The languages transactional mail is written in. Every template exists in each of them.
+MailLanguage = Literal["de", "en"]
 
 
 class MailPort(Protocol):
     async def send(self, *, to: str, subject: str, body_md: str) -> bool: ...
+
+
+def mail_language(locale: str | None) -> MailLanguage:
+    """The language to write a recipient's mail in, from their stored ``users.locale``.
+
+    German for any German tag (``de``, ``de-AT``, ``de_CH``); English for everything else,
+    including a locale we have no templates for and a missing one."""
+    tag = (locale or "").strip().lower().replace("_", "-")
+    return "de" if tag.split("-")[0] == "de" else "en"
 
 
 def get_mail(request: Request) -> MailPort:

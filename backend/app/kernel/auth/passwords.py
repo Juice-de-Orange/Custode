@@ -15,12 +15,12 @@ MAX_PASSWORD_LENGTH = 1024
 
 
 def password_too_weak(password: str) -> str | None:
-    """A user-facing (German) reason if the password violates the length policy,
+    """A user-facing (English) reason if the password violates the length policy,
     else None. Breached-password rejection is separate (``pwned.py``)."""
     if len(password) < MIN_PASSWORD_LENGTH:
-        return f"Passwort muss mindestens {MIN_PASSWORD_LENGTH} Zeichen lang sein."
+        return f"The password must be at least {MIN_PASSWORD_LENGTH} characters long."
     if len(password) > MAX_PASSWORD_LENGTH:
-        return "Passwort ist zu lang."
+        return "The password is too long."
     return None
 
 

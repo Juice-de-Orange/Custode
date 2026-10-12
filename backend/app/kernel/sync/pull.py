@@ -36,9 +36,9 @@ def _decode(cursor: str) -> tuple[datetime, uuid.UUID]:
         u_str, id_str = decode_cursor(cursor)
         after = (datetime.fromisoformat(u_str), uuid.UUID(id_str))
     except (ValueError, KeyError) as exc:
-        raise ProblemException(slug="resync_required", title="Cursor ungültig", status=410) from exc
+        raise ProblemException(slug="resync_required", title="Invalid cursor", status=410) from exc
     if after[0] < datetime.now(UTC) - timedelta(days=TOMBSTONE_DAYS):
-        raise ProblemException(slug="resync_required", title="Cursor abgelaufen", status=410)
+        raise ProblemException(slug="resync_required", title="Cursor expired", status=410)
     return after
 
 

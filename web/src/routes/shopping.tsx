@@ -98,7 +98,9 @@ export function ShoppingPage() {
           >
             {lists.data.map((list) => (
               <option key={list.id} value={list.id}>
-                {list.name}
+                {/* The server names a household's first list "Einkauf" (shopping service); show
+                    it in the interface language rather than as stored. */}
+                {list.name === "Einkauf" ? i18n._("shopping.defaultListName") : list.name}
               </option>
             ))}
           </select>

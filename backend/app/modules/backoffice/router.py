@@ -75,9 +75,7 @@ async def login(payload: OperatorLogin, session: OpsSession) -> OperatorSession:
         session, email=payload.email, password=payload.password, totp_code=payload.totp_code
     )
     if operator is None:
-        raise ProblemException(
-            slug="invalid_credentials", title="Anmeldung fehlgeschlagen", status=401
-        )
+        raise ProblemException(slug="invalid_credentials", title="Sign-in failed", status=401)
     token = await mint_ops_session(operator.id)
     return OperatorSession(token=token)
 
@@ -134,7 +132,7 @@ async def deactivate_banner(
     """Deactivate a banner (audited). 404 if it doesn't exist."""
     banner = await service.deactivate_banner(session, operator_id=operator.id, banner_id=banner_id)
     if banner is None:
-        raise ProblemException(slug="not_found", title="Banner nicht gefunden", status=404)
+        raise ProblemException(slug="not_found", title="Banner not found", status=404)
     return _banner(banner)
 
 
@@ -153,7 +151,7 @@ async def set_flag(
 ) -> OpsFlags:
     """Set a global flag override (audited). 422 if ``key`` is not a flaggable flag."""
     if key not in DEFAULT_HOUSEHOLD_FLAGS:
-        raise ProblemException(slug="invalid_flag", title="Unbekanntes Flag", status=422)
+        raise ProblemException(slug="invalid_flag", title="Unknown flag", status=422)
     await set_global_flag(session, key=key, enabled=payload.enabled, updated_by=operator.id)
     await record_audit(
         session,
@@ -203,7 +201,7 @@ async def household_detail(
     """One household's metadata (ops_readonly). 404 if unknown."""
     meta = await service.get_household_metadata(session, household_id=household_id)
     if meta is None:
-        raise ProblemException(slug="not_found", title="Haushalt nicht gefunden", status=404)
+        raise ProblemException(slug="not_found", title="Household not found", status=404)
     # Audited (ADR-0073) only on a successful view — a 404 raised above rolls back the ops_actions
     # session, so nothing-viewed is never recorded.
     await record_audit(
@@ -278,7 +276,7 @@ async def deactivate_operator(
     if operator_id == operator.id:
         raise ProblemException(
             slug="cannot_deactivate_self",
-            title="Man kann sich nicht selbst deaktivieren",
+            title="You cannot deactivate yourself",
             status=409,
         )
     try:
@@ -288,11 +286,11 @@ async def deactivate_operator(
     except service.LastActiveOperatorError:
         raise ProblemException(
             slug="cannot_deactivate_last",
-            title="Der letzte aktive Operator kann nicht deaktiviert werden",
+            title="The last active operator cannot be deactivated",
             status=409,
         ) from None
     if updated is None:
-        raise ProblemException(slug="not_found", title="Operator nicht gefunden", status=404)
+        raise ProblemException(slug="not_found", title="Operator not found", status=404)
     return _operator_summary(updated)
 
 
@@ -305,7 +303,7 @@ async def reactivate_operator(
         session, operator_id=operator_id, active=True, actor_id=operator.id
     )
     if updated is None:
-        raise ProblemException(slug="not_found", title="Operator nicht gefunden", status=404)
+        raise ProblemException(slug="not_found", title="Operator not found", status=404)
     return _operator_summary(updated)
 
 
@@ -395,7 +393,7 @@ async def ops_delete_passkey(
         session, operator_id=operator.id, passkey_id=passkey_id
     )
     if not deleted:
-        raise ProblemException(slug="not_found", title="Passkey nicht gefunden", status=404)
+        raise ProblemException(slug="not_found", title="Passkey not found", status=404)
 
 
 @banners_router.get("")

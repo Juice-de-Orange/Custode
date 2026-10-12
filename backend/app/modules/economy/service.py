@@ -99,11 +99,11 @@ async def transfer(
     freely; any other source is coverage-checked (balance ≥ amount) so a balance never goes negative
     (KONZEPT §5.9). Returns the new (flushed) entry. Append-only — never updates an existing row."""
     if amount <= 0:
-        raise ProblemException(slug="invalid_amount", title="Betrag muss positiv sein", status=422)
+        raise ProblemException(slug="invalid_amount", title="Amount must be positive", status=422)
     if frm == to:
-        raise ProblemException(slug="invalid_transfer", title="Quelle == Ziel", status=422)
+        raise ProblemException(slug="invalid_transfer", title="Source == target", status=422)
     if frm != SYSTEM and await balance(session, account=frm) < amount:
-        raise ProblemException(slug="insufficient_funds", title="Nicht genug Punkte", status=422)
+        raise ProblemException(slug="insufficient_funds", title="Not enough points", status=422)
     entry = LedgerEntry(
         household_id=household_id,
         from_account=frm,
@@ -169,7 +169,7 @@ async def admin_correction(
     """Admin grants (amount > 0: system -> member) or claws back (amount < 0: member -> system)
     with a visible counter-entry (no silent edit, KONZEPT §5.9). Claw-back is coverage-checked."""
     if amount == 0:
-        raise ProblemException(slug="invalid_amount", title="Betrag != 0 erforderlich", status=422)
+        raise ProblemException(slug="invalid_amount", title="Amount must not be 0", status=422)
     member = member_account(member_id)
     if amount > 0:
         frm, to, value = SYSTEM, member, amount
@@ -223,7 +223,7 @@ async def list_rewards(session: AsyncSession, *, include_inactive: bool) -> list
 async def get_reward(session: AsyncSession, *, reward_id: uuid.UUID) -> Reward:
     reward = await session.get(Reward, reward_id)
     if reward is None or reward.deleted_at is not None:
-        raise ProblemException(slug="not_found", title="Belohnung nicht gefunden", status=404)
+        raise ProblemException(slug="not_found", title="Reward not found", status=404)
     return reward
 
 
@@ -239,7 +239,7 @@ async def update_reward(
     reward = await get_reward(session, reward_id=reward_id)
     if reward.version != expected_version:
         raise ProblemException(
-            slug="precondition_failed", title="Belohnung zwischenzeitlich geändert", status=412
+            slug="precondition_failed", title="Reward was changed in the meantime", status=412
         )
     for field in ("title", "description", "cost", "stock", "cooldown_hours", "kind", "active"):
         value = getattr(data, field)
@@ -271,9 +271,9 @@ async def redeem_reward(
     emit ``reward.redeemed`` (drives the admin's live confirm list). All in one transaction."""
     reward = await get_reward(session, reward_id=reward_id)
     if not reward.active:
-        raise ProblemException(slug="reward_inactive", title="Belohnung inaktiv", status=409)
+        raise ProblemException(slug="reward_inactive", title="Reward is inactive", status=409)
     if reward.stock is not None and reward.stock <= 0:
-        raise ProblemException(slug="out_of_stock", title="Kontingent erschöpft", status=409)
+        raise ProblemException(slug="out_of_stock", title="Out of stock", status=409)
     if reward.cooldown_hours:
         since = datetime.now(UTC) - timedelta(hours=reward.cooldown_hours)
         recent = await session.scalar(
@@ -286,7 +286,7 @@ async def redeem_reward(
             )
         )
         if recent:
-            raise ProblemException(slug="cooldown_active", title="Noch in Cooldown", status=409)
+            raise ProblemException(slug="cooldown_active", title="Still in cooldown", status=409)
 
     # Debit the points first (coverage check -> 422 if not enough). Append-only ledger.
     await transfer(
@@ -336,9 +336,9 @@ async def fulfil_redemption(
     Emits ``reward.redeemed`` (refresh the lists)."""
     redemption = await session.get(Redemption, redemption_id)
     if redemption is None or redemption.deleted_at is not None:
-        raise ProblemException(slug="not_found", title="Einlösung nicht gefunden", status=404)
+        raise ProblemException(slug="not_found", title="Redemption not found", status=404)
     if redemption.status != "requested":
-        raise ProblemException(slug="invalid_state", title="Einlösung nicht offen", status=409)
+        raise ProblemException(slug="invalid_state", title="Redemption is not open", status=409)
     redemption.status = "fulfilled"
     await emit(session, type="reward.redeemed", household_id=household_id, payload={})
     await session.flush()
@@ -383,11 +383,11 @@ async def send_thanks(
     giver spends from their own balance) AND capped to ``THANKS_WEEKLY_CAP`` per ISO week. Emits
     ``thanks.sent``. Returns the giver's remaining weekly allowance."""
     if to_user == from_user:
-        raise ProblemException(slug="invalid_transfer", title="Nicht an sich selbst", status=422)
+        raise ProblemException(slug="invalid_transfer", title="Not to yourself", status=422)
     given = await thanks_given_this_week(session, user_id=from_user)
     if given + amount > THANKS_WEEKLY_CAP:
         raise ProblemException(
-            slug="thanks_cap_reached", title="Wochen-Limit für Danke erreicht", status=422
+            slug="thanks_cap_reached", title="Weekly limit for thanks reached", status=422
         )
     await transfer(
         session,

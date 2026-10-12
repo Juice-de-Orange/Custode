@@ -60,11 +60,11 @@ class FetchTooManyRedirectsError(FetchError):
 
 def _blocked() -> ProblemException:
     # One opaque slug for every SSRF rejection — never leak the resolved IP or which check tripped.
-    return ProblemException(slug="import_url_blocked", title="URL nicht erlaubt", status=400)
+    return ProblemException(slug="import_url_blocked", title="URL not allowed", status=400)
 
 
 def _unreachable() -> ProblemException:
-    return ProblemException(slug="import_fetch_failed", title="Seite nicht erreichbar", status=400)
+    return ProblemException(slug="import_fetch_failed", title="Page not reachable", status=400)
 
 
 def is_public_ip(raw_ip: str) -> bool:
@@ -231,10 +231,10 @@ async def safe_fetch(url: str) -> tuple[str, str]:
             http_timeout=TIMEOUT,
         )
     except FetchTooLargeError as exc:
-        raise ProblemException(slug="import_too_large", title="Seite zu groß", status=400) from exc
+        raise ProblemException(slug="import_too_large", title="Page too large", status=400) from exc
     except FetchTooManyRedirectsError as exc:
         raise ProblemException(
-            slug="import_too_many_redirects", title="Zu viele Weiterleitungen", status=400
+            slug="import_too_many_redirects", title="Too many redirects", status=400
         ) from exc
     except FetchBlockedError as exc:
         raise _blocked() from exc

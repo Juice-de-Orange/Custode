@@ -8,6 +8,14 @@ history (June–September 2026, German) is not part of the public repository.
 
 ### Added
 
+- Public demo mode (`CUSTODE_DEMO_MODE=on`, default off): one shared demo household whose login
+  the sign-in page fills in, a banner on every page (English and German), sign-up, mail, invites,
+  uploads, imports, ICS/CalDAV, vault, integrations, the live stream and the operator console
+  refused server-side with `demo_disabled`, every external adapter off, a per-visitor rate limit,
+  a body cap and `noindex`. `docker-compose.demo.yml` runs it isolated (internal network without
+  internet for the app, one port on `127.0.0.1`, limits per service, rotated logs), and
+  `python -m app.scripts.demo_reset` puts the household back every hour. The demo seed has an
+  English variant (`python -m app.scripts.seed_demo --lang en`). See `docs/demo.md`.
 - Initial public release under AGPL-3.0: all modules of roadmap phases 0–9 (accounts and
   households, recipes and nutrition, meal planner, shopping list, calendars with CalDAV sync,
   tasks with points ledger and marketplace, vault, messaging, guides, notes, comments, wearables,
@@ -18,9 +26,36 @@ history (June–September 2026, German) is not part of the public repository.
 - The English interface is reachable: the UI follows the browser language (German as fallback)
   and can be pinned per browser under Profile → Language.
 - The account page shows admins the sign-in link for child accounts, with a copy button.
+- `docs/operations.md`: the operator guide in English — install, configure, reverse proxy, legal
+  pages, backup, restore, update (with draining the job queue first), logs and health.
+- The `web` service has the network alias `custode-web`: point your proxy at `custode-web:80`,
+  independent of the Compose project name.
+
+- One-command start: `./setup` writes `.env` with generated secrets, `docker compose up -d` runs
+  the stack on `http://localhost:8080` (`docker-compose.quickstart.yml`), and
+  `docker compose run --rm seed-demo` adds a sample household without any host toolchain.
+- Release workflow: every `v*` tag publishes `ghcr.io/juice-de-orange/custode-api` and
+  `custode-web` for linux/amd64 and linux/arm64; `docker-compose.prod.yml` pulls them and keeps
+  `build:` as the fallback. A `migrate` job applies the migrations before the app starts.
+- Issue template for questions; README hero animation and "How it compares".
 
 ### Changed
 
+- The interface falls back to English (was German) when the browser asks for neither language;
+  the installable app's manifest, the page language and the screen-reader labels of the
+  navigation are English by default. `.env.prod.example` and the comments in
+  `docker-compose.prod.yml` are English.
+- README: the tagline says "self-hosted" instead of "EU-hosted" (there is no hosted service);
+  quick-capture is described as it works (deterministic parsing, an optional local LLM enriches
+  free text); a "Known limitations" section.
+- Imprint and privacy policy come from the operator: Markdown files in the `legal/` folder
+  (`imprint.md`, `privacy.md`, optionally per language), served by the `web` container under
+  `/legal/`. Without them the pages say that the operator has not provided them; the draft texts
+  that every instance used to ship as its own are gone. `legal/privacy.example.md` is a template
+  (see `docs/operations.md`, "Legal pages"). `CUSTODE_LEGAL_DIR` points the stack at another
+  folder.
+- The footer's "Source code" link (AGPL §13) can point at a modified version's source:
+  `CUSTODE_SOURCE_URL` in `.env`, applied at the next `build`.
 - A child account is no longer asked to confirm an e-mail address it does not have, and `/vault`
   tells child and guest accounts that the vault is not available to them.
 - README: what the functional checks covered and what they did not; the backup section names the
@@ -32,9 +67,30 @@ history (June–September 2026, German) is not part of the public repository.
 - Web: React 19.3. The API client is generated into `web/src/api/client` and `web/src/api/core`
   by `@hey-api/openapi-ts` 0.99 instead of being imported from `@hey-api/client-fetch`. Bundle
   budgets: member app 231 kB, operator console 147 kB (gzip, eager JS + CSS).
+- Calendar API: event times in request bodies must carry a time-zone offset (`starts_at`/`ends_at`
+  on create and PATCH, `occurrence_start`/`new_start`/`new_end` on the occurrence endpoints);
+  otherwise `422 validation`. **Behaviour change for API clients:** a create or PATCH with a naive
+  pair, and a restore/reset with a naive `occurrence_start`, used to succeed with the value read as
+  UTC. The web app always sends offsets and is not affected.
+- E-mails (verification, password reset, weekly digest) are written in the recipient's account
+  language — German for a German locale, English otherwise — instead of always German. The web
+  app stores the interface language on the account at registration and on a change in the
+  profile.
+- API problem responses have English `title` and `detail` texts (slugs unchanged; the web app
+  translates by slug as before), and `docs/errors.md` is in English.
 
 ### Fixed
 
+- `create_operator` works in the dev stack: the dev api now connects with the operator roles
+  (`ops_readonly`, `ops_actions`) like production; before, it failed with "permission denied for
+  table operators".
+- Vault: an entry your key cannot decrypt is shown as "Unreadable entry" with an explanation
+  instead of "??", and deleting it asks for confirmation first — another member may still be
+  able to read it. Readable entries keep their direct delete button.
+- Vault: an outdated app (for example an old build still served by an installed PWA) can no
+  longer store a passphrase envelope around a key nobody else in the household has. A member's
+  first passphrase envelope must name the household's recovery envelope; otherwise the server
+  answers `409 client_outdated` and stores nothing, and the current app asks you to reload.
 - Vault: a household's second member can no longer destroy the first member's vault. The
   household-wide recovery envelope is write-once on the server (`409 vault_already_set_up`), and
   a member without an envelope of their own now **joins** the existing vault with the household's
@@ -43,6 +99,11 @@ history (June–September 2026, German) is not part of the public repository.
   JSON and always failed with 422.
 - The operator console's theme button named its mode with a raw message id.
 - Calendar: an end before the start is reported at the end field instead of the generic error.
+- Calendar and scheduling: a `from`/`to` query bound without a time-zone offset
+  (`GET /v1/calendar/events?from=2026-07-01T00:00:00`, same for `/v1/scheduling/slots`) is
+  rejected with `422 validation`; it failed with 500. The same for naive times in the calendar's
+  request bodies that failed with 500: cancelling or moving an occurrence, and a create or PATCH
+  that mixed a naive with an offset-carrying time.
 - `create_operator` refuses an argument that is not an e-mail address.
 - `make install` uses `npm ci`, which leaves `web/package-lock.json` untouched.
 - Worker: taskiq worker children no longer die every five seconds on an idle queue (redis-py 8

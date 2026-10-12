@@ -49,19 +49,28 @@ vi.mock("../vault/queries", () => ({
       if (body.kind === "recovery" && state.envelopes.some((e) => e.kind === "recovery")) {
         throw new ProblemError("vault_already_set_up");
       }
+      // Like the server: a member's first passphrase envelope must name the live recovery one.
+      const first =
+        body.kind === "passphrase" && !state.envelopes.some((e) => e.member_id === memberId);
+      const recovery = state.envelopes.find((e) => e.kind === "recovery");
+      if (first && (!recovery || body.wrap_meta?.recovery_envelope_id !== recovery.id)) {
+        throw new ProblemError("client_outdated");
+      }
+      const stored: EnvelopeResponse = {
+        id: `env-${state.envelopes.length}`,
+        member_id: memberId,
+        kind: body.kind,
+        key_version: 1,
+        wrapped_key: body.wrapped_key,
+        wrap_meta: body.wrap_meta ?? {},
+        created_at: "2026-10-03T00:00:00Z",
+      };
       state.envelopes = [
         ...state.envelopes.filter((e) => !(e.kind === body.kind && e.member_id === memberId)),
-        {
-          id: `env-${state.envelopes.length}`,
-          member_id: memberId,
-          kind: body.kind,
-          key_version: 1,
-          wrapped_key: body.wrapped_key,
-          wrap_meta: body.wrap_meta ?? {},
-          created_at: "2026-10-03T00:00:00Z",
-        },
+        stored,
       ];
       state.rerender();
+      return stored;
     },
   }),
   useVaultItems: () => ({ data: state.noItems, isLoading: false, isError: false }),
@@ -144,6 +153,8 @@ test("a second member joins the existing vault: same household key, recovery env
 
   // Exactly one write: B's own passphrase envelope. Never a recovery envelope.
   expect(state.puts.map((p) => p.kind)).toEqual(["passphrase"]);
+  // It names the recovery envelope its key came from (server: 409 client_outdated otherwise).
+  expect(state.puts[0].wrap_meta?.recovery_envelope_id).toBe("hh-rec");
   expect(state.envelopes.find((e) => e.kind === "recovery")).toEqual(recoveryBefore);
 
   // B's envelope wraps A's household key — the same bytes, not a new key.
@@ -213,3 +224,26 @@ test("a child account sees 'not available' and the keys are never requested", ()
   expect(screen.queryByText("Etwas ist schiefgelaufen.")).toBeNull();
   expect(state.keysEnabled.every((enabled) => enabled === false)).toBe(true);
 });
+
+test("a refused envelope write because of an outdated build says 'reload', not a generic error", async () => {
+  await vaultOfMemberA();
+  // The household's recovery envelope changed id under this page (e.g. the page is from an
+  // older build than the server's protocol): the server answers 409 client_outdated.
+  state.envelopes = state.envelopes.map((e) => (e.kind === "recovery" ? { ...e, id: "newer" } : e));
+  const pageView = state.envelopes;
+  renderVault();
+  fireEvent.change(screen.getByLabelText("Wiederherstellungs-Code"), {
+    target: { value: RECOVERY_CODE },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Tresor beitreten" }));
+  expect(await screen.findByText("Neue Passphrase setzen")).toBeInTheDocument();
+  state.envelopes = pageView.map((e) => (e.kind === "recovery" ? { ...e, id: "server-side" } : e));
+  fireEvent.change(screen.getByLabelText("Vault-Passphrase"), {
+    target: { value: "passphrase-von-b" },
+  });
+  fireEvent.click(screen.getAllByRole("button", { name: "Speichern" })[0]);
+  expect(await screen.findByRole("alert", {}, { timeout: 30_000 })).toHaveTextContent(
+    /Version der App ist veraltet/,
+  );
+  expect(state.envelopes.some((e) => e.member_id === "member-b")).toBe(false);
+}, 60_000);

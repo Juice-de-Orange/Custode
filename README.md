@@ -1,40 +1,94 @@
 # Custode
 
-**The operating system for your household — one app, EU-hosted, ad-free, open source.**
+**One self-hosted app for the shared life of a household — meals, shopping, chores, calendars and
+passwords, for everyone who lives there.**
 
-Custode is a household platform: recipes, meal planner, shopping list, personal and household
-calendars with CalDAV sync, household tasks with a points economy and an internal marketplace, a
-client-side encrypted vault for shared credentials, messaging, guides, notes, wearables (Oura),
-weather and an LLM-assisted quick-capture. Web-first as an installable PWA; Android planned. Built
-as a **modular monolith** (FastAPI + PostgreSQL 18 with row-level security, React 19 PWA) with the
-kind of engineering discipline a multi-tenant product handling family data needs.
-
-> **Status: prototype in beta.** Phases 0–9 of the [roadmap](KONFIG/Roadmap_to_V0.1.md) are built
-> (all modules, CalDAV two-way sync, Oura, GDPR export and erasure); Phase 11 (hardening and legal)
-> is in progress; Android (Phase 10) has not started. The maintainer runs one instance for a
-> private household. No public hosted service exists yet. Issues and pull requests are welcome.
->
-> **What has been checked, and what has not.** Two functional checks ran against a fresh clone
-> — this README followed literally, the PWA used in a real browser, on the dev and the production
-> stack: registration with mail verification, households with a second member and a child
-> account, tasks, rooms, shopping, calendar (CalDAV against Radicale, ICS), notes, recipes,
-> guides, quick-capture, letters, vault, passkeys and TOTP, tenant isolation, GDPR export, the
-> operator console, backup and restore. They did **not** cover: real SMTP delivery (mail went to
-> mailpit), the Oura integration, quick-capture with an LLM (only the deterministic path without
-> one), hardware authenticators (passkeys were exercised with a virtual authenticator), and
-> operation behind a TLS-terminating reverse proxy.
-
-The product is designed in German — the concept and architecture documents in [`KONFIG/`](KONFIG/)
-and the engineering notes in [`docs/`](docs/) are German by intent. The UI ships in German and
-English (Lingui): it follows the browser language, falls back to German, and can be pinned per
-browser under Profile → Language. This README and [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) are the English
-entry points.
-
-<p>
-  <img src="web/public/screenshots/wide-today.png" alt="Today view, desktop" width="640">
-  <img src="web/public/screenshots/mobile-today.png" alt="Today view, phone" width="180">
-  <img src="web/public/screenshots/mobile-shopping.png" alt="Shopping list, phone" width="180">
+<p align="center">
+  <img src="docs/images/hero.gif" alt="Custode: plan a dinner from a recipe, put its ingredients on the shared shopping list, tick a chore and earn its points" width="720">
 </p>
+
+- **Plan the week's dinners** from your recipes and turn them into one shared shopping list that
+  works offline in the shop.
+- **Share the chores fairly:** recurring tasks per room, points for what gets done, rewards to
+  spend them on — booked in a real ledger, not a leaderboard.
+- **Keep everyone's calendar together:** personal and household calendars with recurring events,
+  CalDAV two-way sync (tested with Radicale) and ICS feeds.
+- **Share passwords safely:** a household vault encrypted in the browser — the server only ever
+  sees ciphertext.
+- **Own the data:** one Docker Compose stack on your hardware, households separated by Postgres
+  row-level security, GDPR export and erasure built in, no ads, AGPL-3.0.
+
+## Quick start
+
+```bash
+git clone https://github.com/Juice-de-Orange/Custode.git && cd Custode
+./setup                # writes .env with generated secrets — nothing to edit
+docker compose up -d   # pulls or builds the images, migrates the database, starts everything
+```
+
+Open <http://localhost:8080> and create an account; the first account creates your household.
+Want to look around first? `docker compose run --rm seed-demo` adds an invented, lived-in
+household (sign in as `admin@custode.local` / `custode-admin-demo` — a published password, so only
+on a trial instance).
+
+From `git clone` to the sign-in page took **about 4 minutes** (253 s) on a clean Docker host — no
+cached images, a ~90 Mbit/s line — measured on 2026-10-12 while building from source: there is
+no release with published images yet. Once there is, `up` pulls them from GHCR instead of
+building. Needs Docker with Compose v2.24 or newer (tested with 2.33 and 5.6) and about 2 GB of
+disk. The quick start listens on 127.0.0.1 only; to use Custode from other devices, put it behind
+HTTPS ([Self-hosting](#self-hosting), [`docs/operations.md`](docs/operations.md)).
+
+> **Status: beta, one maintainer, no release yet.** All modules of roadmap phases 0–9 are built
+> (CalDAV two-way sync, Oura, GDPR export and erasure included); hardening is in progress; the
+> Android app has not started. The maintainer runs one instance for a private household; there is
+> no hosted service. Two functional checks ran against a fresh clone — the README followed
+> literally, the PWA used in a real browser — covering registration with mail, households with a
+> second member and a child, tasks, rooms, shopping, calendar (CalDAV against Radicale, ICS),
+> notes, recipes, guides, quick-capture, letters, vault, passkeys and TOTP, tenant isolation, GDPR
+> export, the operator console, backup and restore. **Not covered:** real SMTP delivery, Oura,
+> quick-capture with an LLM, hardware authenticators (a virtual one was used), operation behind a
+> TLS-terminating proxy. Issues and pull requests are welcome.
+>
+> Built with AI assistance.
+
+**Languages.** The interface ships in English and German: it follows the browser language, falls
+back to English, and can be pinned per browser under Profile → Language. This README,
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/operations.md`](docs/operations.md) and
+everything an operator needs are English; the concept documents in [`KONFIG/`](KONFIG/) and the
+engineering notes in [`docs/`](docs/) (ADRs, module notes, bug log) are German by design.
+
+## How it compares
+
+Custode is younger and smaller than the established self-hosted kitchen and household apps. It
+is for a household that wants meals, shopping, chores, calendars and shared passwords in **one**
+place with one login. If you need one of those things done exceptionally well, one of these is
+probably the better choice today. Checked against each project's README, documentation and latest
+release on 2026-10-12:
+
+| | Custode | [Grocy](https://grocy.info) | [Mealie](https://mealie.io) | [Tandoor](https://tandoor.dev) | [KitchenOwl](https://kitchenowl.org) |
+|---|---|---|---|---|---|
+| Licence | AGPL-3.0 | MIT | AGPL-3.0 | AGPL-3.0 + Commons Clause | AGPL-3.0 |
+| Since / latest release | 2026 / none yet (beta) | 2017 / v4.7.1 | 2020 / v3.28.0 | 2019 / 2.6.15 | 2021 / v0.7.10 (alpha) |
+| Recipe import from a URL | yes (schema.org) | add-on only | yes, plus AI and video import | yes, plus AI import | yes |
+| Import from other apps | – | – | 9 apps | ~22 apps | – |
+| Meal planner | yes, with auto-fill | yes | yes | yes | yes |
+| Shopping list offline | yes | no | not documented | partly (queued sync) | partly |
+| Pantry, expiry dates, barcodes | – | yes, yes, yes | – | yes, yes, – | – |
+| Chores | yes, with points, rewards and a task marketplace | yes, with assignments | – | – | – |
+| Expense splitting | – | – | – | – | yes |
+| Calendar | household + personal, CalDAV two-way sync, ICS feed | iCal feed | via Home Assistant | meal plan iCal export | – |
+| Shared password vault, notes, messages | yes | – | – | – | – |
+| Several households per instance | yes (Postgres row-level security) | – | groups and households | spaces and households | households |
+| Sign-in options | password, passkeys, TOTP | built-in, LDAP, proxy auth | OIDC, LDAP | OIDC, LDAP, proxy auth | OIDC |
+| Native mobile apps | – (installable PWA) | community apps | – | community apps | Android, iOS, F-Droid |
+| Home Assistant | – | community | official integration | beta connector | HACS integration |
+| UI languages | 2 | 33 | 35+ | ~38 | ~49 |
+
+Where they are better: Grocy has eight years of history and real pantry tooling (barcode
+scanners, Open Food Facts, expiry, locations and prices), and it already ships chores and an iCal
+feed. Mealie and Tandoor have hundreds of contributors and import recipes from far more sources
+and apps. KitchenOwl has official native apps and expense splitting. All four have many more
+translations, SSO, a larger community and published releases; Custode has none of that yet.
 
 ## Why
 
@@ -59,8 +113,9 @@ rights built in from day one (export, erasure, purge jobs, consent for health da
 - **Messaging, guides, notes, comments** — letters with read receipts, a household knowledge base
   with German full-text search, notes with version history, generic object links.
 - **Wearables and weather** — Oura OAuth with Art. 9 consent and raw-data retention, Open-Meteo.
-- **Quick-capture** — "Zuruf": dictate or type, an LLM adapter turns it into tasks, notes or
-  shopping items via the normal sync path.
+- **Quick-capture** — "Zuruf": type a line (or use your keyboard's dictation) and it becomes
+  tasks, notes or shopping items via the normal sync path; the structure is parsed
+  deterministically, an optional local LLM (Ollama) only enriches free-text fields.
 - **Accounts** — passkeys (WebAuthn), TOTP, child accounts with PIN, invite codes, household
   transparency log, operator console on its own subdomain with separate bearer auth.
 - **GDPR** — export, household exit, account deletion with nightly purge, household dissolution
@@ -88,12 +143,12 @@ generated TypeScript client and zod schemas (drift gate + `oasdiff` on PRs). Det
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) (English), [`KONFIG/ARCHITECTURE.md`](KONFIG/ARCHITECTURE.md)
 (full, German), [`docs/adr/`](docs/adr/) (ADR index), [`docs/MODULES/`](docs/MODULES/).
 
-## Quick start
+## Development stack
 
-Requirements: [uv](https://docs.astral.sh/uv/), Node 22, GNU Make, Docker with Compose v2. No
-system Python is needed: uv installs the interpreter pinned in `backend/.python-version` (3.13,
-the same version the container image runs; `requires-python` is `>=3.12`, but 3.13 is what CI
-and the image exercise).
+For working on the code — not for running it. Requirements: [uv](https://docs.astral.sh/uv/),
+Node 22, GNU Make, Docker with Compose v2. No system Python is needed: uv installs the interpreter
+pinned in `backend/.python-version` (3.13, the same version the container image runs;
+`requires-python` is `>=3.12`, but 3.13 is what CI and the image exercise).
 
 ```bash
 git clone https://github.com/Juice-de-Orange/Custode.git
@@ -108,35 +163,43 @@ make web                 # Vite dev server on http://localhost:5173 (proxies /v1
 
 Log in with the demo account printed by `make seed-demo`. Mail lands in mailpit
 (http://localhost:8025). The dev stack is for a developer machine only — it publishes its
-database ports and uses fixed passwords.
+database ports and uses fixed passwords. An operator account for the operator console is created
+the same way as in production (it prints a password and the TOTP secret once):
+
+```bash
+docker compose -f docker-compose.dev.yml run --rm api python -m app.scripts.create_operator you@example.org
+```
 
 ## Self-hosting
 
-The production stack is `docker-compose.prod.yml`: postgres, redis, api, worker, scheduler and
-`web` (Caddy serving the built PWA and proxying `/v1` to the api). It expects a TLS-terminating
-reverse proxy or tunnel in front and publishes no database ports. Background in ADR-0020 and
-ADR-0024 (German).
+The production stack is `docker-compose.prod.yml`: postgres, redis, a one-off `migrate` job, api,
+worker, scheduler and `web` (Caddy serving the built PWA and proxying `/v1` to the api). It
+expects a TLS-terminating reverse proxy or tunnel in front and publishes no database ports. The
+images come from GHCR (`ghcr.io/juice-de-orange/custode-api` and `-web`, multi-arch, published by
+the release workflow on every `v*` tag; `CUSTODE_VERSION` in `.env` pins one); where an image
+cannot be pulled, Compose builds it from the checkout. The full operator guide —
+configuration, proxy, legal pages, backup, restore, update — is
+[`docs/operations.md`](docs/operations.md); this section is the short version.
 
 **Bring-up.** On the host, in the cloned repository:
 
 ```bash
-cp .env.prod.example .env    # then edit: every change-me, CUSTODE_PUBLIC_BASE_URL, OPS_HOST
-openssl rand -hex 24         # one value per *_PASSWORD (no URL-special characters)
-docker compose -f docker-compose.prod.yml build
-docker compose -f docker-compose.prod.yml run --rm --no-deps api \
-    python -c "from app.kernel.crypto import generate_key; print(generate_key())"   # → CUSTODE_CRYPTO_KEY
-docker compose -f docker-compose.prod.yml up -d postgres redis
-docker compose -f docker-compose.prod.yml run --rm api alembic upgrade head
+./setup                      # .env with generated secrets (or: cp .env.prod.example .env and fill it)
+# edit .env: delete the COMPOSE_FILE line (that is the localhost quick start), set
+# CUSTODE_PUBLIC_BASE_URL and OPS_HOST, and SMTP if you want mail
 docker compose -f docker-compose.prod.yml up -d
 ```
 
 The database roles are created from the `.env` passwords on the **first** start of an empty
-`pgdata` volume only. Migrations run before the app starts; an upgrade is the same sequence
-after `git pull` (`build` → `run --rm api alembic upgrade head` → `up -d`).
+`pgdata` volume only. The `migrate` job applies the migrations before api, worker and scheduler
+start, on every `up`. An upgrade is `git pull` → `pull` (or `build`) → `up -d`; let the job queue
+run empty and take a backup first — the steps are in [`docs/operations.md`](docs/operations.md#update).
 
 **Attaching your proxy.** `web` deliberately publishes no host port. Either put your reverse
 proxy or tunnel container on the stack's network (`custode_default`) and point it at
-`http://web:80`, or publish the port to the host's loopback with a Compose override
+`http://custode-web:80` — a network alias that does not depend on the Compose project name and,
+unlike the bare service name `web`, cannot be confused with another stack's `web` when the proxy
+joins several networks — or publish the port to the host's loopback with a Compose override
 (`services: {web: {ports: ["127.0.0.1:8081:80"]}}`) and proxy to that. Caddy speaks plain HTTP
 on :80 for both site blocks. The operator console is a second site on the host name in
 `OPS_HOST` (default `ops.localhost`), so the proxy must forward the original `Host` header. The
@@ -152,6 +215,10 @@ docker compose -f docker-compose.prod.yml run --rm api \
 
 It prints a generated password and the TOTP secret exactly once (TOTP is mandatory for the
 console); a re-run for the same address changes nothing.
+
+**Legal pages.** Imprint and privacy policy are yours to provide: put `imprint.md` and
+`privacy.md` into the `legal/` folder (see [`legal/README.md`](legal/README.md)); until you do,
+the app says that the operator has not provided them.
 
 **Without SMTP.** Leave `CUSTODE_SMTP_HOST` empty (the template ships a placeholder host —
 clear it) and the app runs with a null mail adapter: registration and login work, accounts stay
@@ -184,6 +251,24 @@ docker compose -f docker-compose.prod.yml up -d
 The dump carries no roles — they come from the init script, which is why the restore starts
 postgres on an empty volume first.
 
+## Known limitations
+
+- **Quick start.** It listens on `127.0.0.1` only and uses `Secure` cookies, which browsers accept
+  on `localhost`; from another device the sign-in only works behind HTTPS.
+- **Keys.** There is no rotation path for `CUSTODE_CRYPTO_KEY` (#7). The vault's household key
+  is not rotated when a member leaves, and the household recovery code is a shared secret that
+  cannot be changed; a member joins the vault with that code (ADR-0067 addendum). Vault data that
+  an older version's second "setup" already overwrote is not repaired.
+- **Mail.** Without SMTP nobody can reset a forgotten password.
+- **Not exercised by the maintainers:** real SMTP delivery, Oura, quick-capture with an LLM,
+  hardware authenticators, operation behind a real TLS-terminating proxy.
+- **Configuration.** The web app's brand name is a build constant (`web/src/lib/brand.ts`), not
+  the `CUSTODE_BRAND_NAME` setting the backend reads. Unknown `CUSTODE_*` variables are ignored
+  without a warning, so a typo in `.env` goes unnoticed. The database roles are created only on
+  the first start of an empty database volume.
+- **Dev stack.** Fixed host ports on all interfaces and a hard-coded Vite proxy target (#41).
+- **Scope.** Google CalDAV is not supported (#9); the Android app has not started (#11).
+
 ## Development
 
 ```bash
@@ -194,10 +279,10 @@ make openapi       # export the schema and regenerate the web client
 make format
 ```
 
-The backend suite needs Docker and takes 10–30 minutes; CI runs it in ~8 minutes. Gates are listed
-in [`CLAUDE.md`](CLAUDE.md), which is the binding working instruction for humans and AI-assisted
-sessions alike — module boundaries, definition of done, the review rules this codebase learned the
-hard way. See [`CONTRIBUTING.md`](CONTRIBUTING.md).
+The backend suite needs Docker and takes 10–30 minutes on a laptop; CI runs it in about 4
+minutes. Gates are listed in [`CLAUDE.md`](CLAUDE.md), which is the binding working instruction
+for humans and AI-assisted sessions alike — module boundaries, definition of done, the review
+rules this codebase learned the hard way. See [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## Tech stack
 
@@ -215,9 +300,9 @@ volume ([ADR-0033](docs/adr/0033-blob-storage-photos.md)); no object store is ne
 
 ## Built with
 
-The codebase was built in AI-assisted sessions working against `CLAUDE.md` and the concept
+AI-assisted sessions (see the status box above) working against `CLAUDE.md` and the concept
 documents, with a definition of done per unit, a bug log with cause, fix, regression test and
-lesson ([`docs/BUGLOG.md`](docs/BUGLOG.md)), and 80+ ADRs. German comments and commit messages in
+lesson ([`docs/BUGLOG.md`](docs/BUGLOG.md)), and 70+ ADRs. German comments and commit messages in
 the engineering docs are a trace of that workflow.
 
 ## Licence

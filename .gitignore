@@ -57,3 +57,8 @@ infra/**/data/
 .opensource/
 .claude/settings.local.json
 .mcp.json
+
+# Operator legal texts (docs/operations.md, "Legal pages"): instance-specific, never committed.
+legal/*.md
+!legal/README.md
+!legal/*.example.md

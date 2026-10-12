@@ -41,7 +41,7 @@ def _sanitize_filename(name: str | None) -> str:
 
 def _require_household(principal: Principal) -> uuid.UUID:
     if principal.household_id is None:
-        raise ProblemException(slug="forbidden", title="Kein aktiver Haushalt", status=403)
+        raise ProblemException(slug="forbidden", title="No active household", status=403)
     return principal.household_id
 
 
@@ -183,11 +183,11 @@ async def upload_attachment(
     household_id = _require_household(principal)
     if not get_storage().enabled:
         raise ProblemException(
-            slug="storage_unavailable", title="Datei-Upload nicht verfügbar", status=503
+            slug="storage_unavailable", title="File upload not available", status=503
         )
     raw = await file.read(_MAX_ATTACHMENT_BYTES + 1)
     if len(raw) > _MAX_ATTACHMENT_BYTES:
-        raise ProblemException(slug="file_too_large", title="Datei zu groß", status=413)
+        raise ProblemException(slug="file_too_large", title="File too large", status=413)
     attachment = await service.add_attachment(
         session,
         household_id=household_id,
@@ -212,7 +212,7 @@ async def download_attachment(
     attachment = await service.get_attachment(session, attachment_id=attachment_id)
     data = service.read_attachment_bytes(attachment)
     if data is None:
-        raise ProblemException(slug="not_found", title="Anhang nicht gefunden", status=404)
+        raise ProblemException(slug="not_found", title="Attachment not found", status=404)
     return Response(
         content=data,
         media_type=attachment.content_type,

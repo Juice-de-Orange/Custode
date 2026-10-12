@@ -77,6 +77,19 @@ def _problem(
     return response
 
 
+def problem_response(request: Request, exc: ProblemException) -> JSONResponse:
+    """Render a :class:`ProblemException` outside the exception handlers — for a middleware that
+    answers before routing (Starlette's handlers only see what the router raises)."""
+    return _problem(
+        status=exc.status,
+        slug=exc.slug,
+        title=exc.title,
+        detail=exc.detail,
+        reference=_reference(request),
+        extra=exc.extra,
+    )
+
+
 def install_problem_handlers(app: FastAPI) -> None:
     @app.exception_handler(ProblemException)
     async def _on_problem(request: Request, exc: ProblemException) -> JSONResponse:
@@ -94,8 +107,8 @@ def install_problem_handlers(app: FastAPI) -> None:
         return _problem(
             status=422,
             slug="validation",
-            title="Eingabe ungültig",
-            detail="Validierung fehlgeschlagen.",
+            title="Invalid input",
+            detail="Validation failed.",
             reference=_reference(request),
             extra={"errors": jsonable_encoder(exc.errors())},
         )
@@ -107,7 +120,7 @@ def install_problem_handlers(app: FastAPI) -> None:
         return _problem(
             status=exc.status_code,
             slug=slug,
-            title=detail or "Fehler",
+            title=detail or "Error",
             reference=_reference(request),
         )
 
@@ -133,7 +146,7 @@ def install_problem_handlers(app: FastAPI) -> None:
         return _problem(
             status=500,
             slug="internal",
-            title="Unerwarteter Fehler",
-            detail="Bitte versuche es erneut. Nenne beim Melden den Referenzcode.",
+            title="Unexpected error",
+            detail="Please try again. Quote the reference code when you report it.",
             reference=reference,
         )
