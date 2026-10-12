@@ -125,9 +125,9 @@ services:
       CUSTODE_OURA_CLIENT_ID: ${CUSTODE_OURA_CLIENT_ID:-}
       CUSTODE_OURA_CLIENT_SECRET: ${CUSTODE_OURA_CLIENT_SECRET:-}
       CUSTODE_WEARABLE_RAW_RETENTION_DAYS: ${CUSTODE_WEARABLE_RAW_RETENTION_DAYS:-90}
-      # Build info for the /ops console (§12) — without these values it shows unknown / 0.0.0.
+      # Build info for the /ops console (§12) — without these values it shows unknown / 0.1.0.
       CUSTODE_GIT_SHA: ${CUSTODE_GIT_SHA:-unknown}
-      CUSTODE_APP_VERSION: ${CUSTODE_APP_VERSION:-0.0.0}
+      CUSTODE_APP_VERSION: ${CUSTODE_APP_VERSION:-0.1.0}
       # Trace export (OpenTelemetry). Empty => no export.
       CUSTODE_OTLP_ENDPOINT: ${CUSTODE_OTLP_ENDPOINT:-}
       # E-mail (ADR-0027). Empty host => null adapter (nothing is sent). Values from .env only.

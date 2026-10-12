@@ -50,7 +50,7 @@ REQUIRED_PROD: dict[str, set[str]] = {
         "CUSTODE_SMTP_HOST",
         "CUSTODE_PUBLIC_BASE_URL",
         "CUSTODE_STORAGE_DIR",
-        # Build-Info der /ops-Konsole — sonst unknown / 0.0.0.
+        # Build-Info der /ops-Konsole — sonst unknown / 0.1.0.
         "CUSTODE_GIT_SHA",
         "CUSTODE_APP_VERSION",
         # Wearables (ADR-0081): die api braucht den Kill-Switch + Credentials fuer /authorize.
