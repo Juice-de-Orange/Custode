@@ -17,10 +17,18 @@ add your own override file (for ports, say), add `-f your-override.yml` after
 |---|---|---|---|
 | `postgres` | `postgres:18` | database, row-level security | volume `pgdata` |
 | `redis` | `redis:7-alpine` | job queue, sessions, short-lived tokens | volume `redisdata` (no backup needed) |
-| `api` | built from `backend/` | FastAPI, published on `127.0.0.1:8080` (health checks only) | volume `storagedata` (photos, attachments) |
-| `worker` | built from `backend/` | background jobs, outbox dispatcher | — |
-| `scheduler` | built from `backend/` | fires the cron jobs (the worker runs them) | — |
-| `web` | built from `web/` (Caddy) | serves the PWA and proxies `/v1` to the api; plain HTTP on `:80`, no host port | your `legal/` folder, read-only |
+| `migrate` | `custode-api` | applies the database migrations on every `up`, then exits; the app services wait for it | — |
+| `api` | `custode-api` | FastAPI, published on `127.0.0.1:8080` (health checks only; `CUSTODE_API_PORT` moves it) | volume `storagedata` (photos, attachments) |
+| `worker` | `custode-api` | background jobs, outbox dispatcher | — |
+| `scheduler` | `custode-api` | fires the cron jobs (the worker runs them) | — |
+| `web` | `custode-web` (Caddy) | serves the PWA and proxies `/v1` to the api; plain HTTP on `:80`, no host port | your `legal/` folder, read-only |
+
+The images are `ghcr.io/juice-de-orange/custode-api` and `ghcr.io/juice-de-orange/custode-web`
+(linux/amd64 and linux/arm64), published by `.github/workflows/release.yml` for every release tag:
+`<version>`, `<major>.<minor>` and `latest`. `CUSTODE_VERSION` in `.env` picks the tag (empty =
+`latest`). Where an image cannot be pulled — before the first release, or offline — Compose builds
+it from the checkout (`build:` stays in the file). Build the web image yourself if you set
+`CUSTODE_SOURCE_URL`: the published one links the upstream repository.
 
 The Compose project is called `custode` (`name:` in the file), so volumes are `custode_pgdata`,
 `custode_storagedata`, … and the network is `custode_default`. Memory limits per service are set
@@ -29,29 +37,31 @@ front of `web`; it publishes no database port.
 
 ## Install
 
-Requirements: Docker with Compose v2, git, openssl.
+Requirements: Docker with Compose v2.24 or newer, git.
 
 ```bash
 git clone https://github.com/Juice-de-Orange/Custode.git
 cd Custode
-cp .env.prod.example .env    # then edit, see "Configure"
-openssl rand -hex 24         # one value per *_PASSWORD (no URL-special characters)
-docker compose -f docker-compose.prod.yml build
-docker compose -f docker-compose.prod.yml run --rm --no-deps api \
-    python -c "from app.kernel.crypto import generate_key; print(generate_key())"   # → CUSTODE_CRYPTO_KEY
-docker compose -f docker-compose.prod.yml up -d postgres redis
-docker compose -f docker-compose.prod.yml run --rm api alembic upgrade head
+./setup                      # writes .env: every password and CUSTODE_CRYPTO_KEY generated
+# edit .env, see "Configure": delete the COMPOSE_FILE line (the localhost quick start),
+# set CUSTODE_PUBLIC_BASE_URL and OPS_HOST, and SMTP if you want mail
 docker compose -f docker-compose.prod.yml up -d
 ```
+
+`./setup` refuses to overwrite an existing `.env`. To fill the file by hand instead, copy
+`.env.prod.example` to `.env`, put one `openssl rand -hex 24` value into each `*_PASSWORD` and
+generate the key with
+`docker compose -f docker-compose.prod.yml run --rm --no-deps api python -c "from app.kernel.crypto import generate_key; print(generate_key())"`.
 
 The database roles (`custode_app`, `custode_maint`, `ops_readonly`, `ops_actions`) are created
 from the `.env` passwords by `infra/postgres/init.prod.sh`, **only on the first start of an empty
 `pgdata` volume**. Changing a `*_PASSWORD` in `.env` later does not change the role; use
-`ALTER ROLE … PASSWORD …` in the database as well. Migrations always run before the app starts.
+`ALTER ROLE … PASSWORD …` in the database as well. Migrations always run before the app starts:
+the `migrate` job runs `alembic upgrade head` on every `up` and the app services wait for it.
 
 ## Configure
 
-`.env` holds every setting; the comments in `.env.prod.example` are German. What you have to set:
+`.env` holds every setting; `.env.prod.example` explains each one. What you have to set:
 
 | Variable | What |
 |---|---|
@@ -208,10 +218,8 @@ docker compose -f docker-compose.prod.yml exec -T redis redis-cli LLEN taskiq   
 
 # 3. new code, new images, migrations, restart
 git pull                      # or: git fetch --tags && git checkout v0.2.0
-docker compose -f docker-compose.prod.yml build
-docker compose -f docker-compose.prod.yml up -d postgres redis
-docker compose -f docker-compose.prod.yml run --rm api alembic upgrade head
-docker compose -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.prod.yml pull    # released images (CUSTODE_VERSION) — or `build` from source
+docker compose -f docker-compose.prod.yml up -d   # `migrate` applies the new migrations first
 ```
 
 Why the queue first: the Redis list `taskiq` holds jobs the scheduler fired but the worker has not
@@ -220,8 +228,8 @@ non-empty queue is not lost data — but a new version should not have to parse 
 messages. Domain events wait in the database outbox, not in Redis, and survive any restart.
 `up -d` at the end starts the scheduler again.
 
-`alembic upgrade head` prints the migrations it applies; when there are none it prints only the
-context lines. Check the result with `docker compose -f docker-compose.prod.yml ps` (all services
+`docker compose -f docker-compose.prod.yml logs migrate` shows the migrations it applied; when
+there were none it prints only the context lines. Check the result with `docker compose -f docker-compose.prod.yml ps` (all services
 `Up`, api/worker/scheduler `healthy`) and `curl -fsS http://127.0.0.1:8080/readyz`.
 
 Read `CHANGELOG.md` before you update; settings that changed are listed there. New settings

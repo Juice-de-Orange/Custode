@@ -24,6 +24,7 @@ should fit.
 ```bash
 cp .env.example .env
 make dev && make migrate && make seed-demo   # full local stack (Docker)
+make install                                 # uv sync (backend) + npm ci (web)
 make web                                     # Vite dev server
 make lint && make lint-imports               # ruff, mypy --strict, eslint, tsc, import-linter
 make test                                    # pytest (Testcontainers) + vitest — needs Docker, 10–30 min

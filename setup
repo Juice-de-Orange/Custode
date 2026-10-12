@@ -1,0 +1,54 @@
+#!/bin/sh
+# Custode — first-time setup for the quick start (README). Writes .env with generated secrets and
+# safe defaults, so `docker compose up -d` needs no editing. Run it once, in the repository.
+#
+#   ./setup                 web app on http://localhost:8080
+#   CUSTODE_HTTP_PORT=9000 ./setup
+#
+# Needs only a POSIX shell and /dev/urandom. It never overwrites an existing .env.
+set -eu
+cd "$(dirname "$0")"
+
+if [ -e .env ]; then
+    echo "setup: .env exists already — nothing changed." >&2
+    echo "       The database passwords in it were applied when the database was created;" >&2
+    echo "       a new .env would not match an existing database volume." >&2
+    exit 1
+fi
+
+port="${CUSTODE_HTTP_PORT:-8080}"
+case "$port" in
+    '' | *[!0-9]*) echo "setup: CUSTODE_HTTP_PORT must be a number" >&2; exit 1 ;;
+esac
+
+hex() { od -An -N24 -tx1 /dev/urandom | tr -d ' \n'; }
+# A Fernet key: 32 random bytes, URL-safe base64 (app.kernel.crypto.generate_key does the same).
+fernet() { head -c 32 /dev/urandom | base64 | tr '+/' '-_' | tr -d '\n'; }
+
+umask 077
+cat > .env <<ENV
+# Written by ./setup on $(date -u +%Y-%m-%d). Keep this file with your backups: without
+# CUSTODE_CRYPTO_KEY stored CalDAV passwords and wearable tokens cannot be decrypted, and the
+# database passwords belong to the database volume. Every other setting: .env.prod.example.
+
+# The quick start: the production stack plus a localhost port (docker-compose.quickstart.yml).
+# Remove this line when you put the stack behind your own proxy (docs/operations.md).
+COMPOSE_FILE=docker-compose.prod.yml:docker-compose.quickstart.yml
+CUSTODE_HTTP_PORT=$port
+CUSTODE_PUBLIC_BASE_URL=http://localhost:$port
+
+POSTGRES_PASSWORD=$(hex)
+APP_DB_PASSWORD=$(hex)
+MAINT_DB_PASSWORD=$(hex)
+OPS_DB_PASSWORD=$(hex)
+OPS_ACTIONS_DB_PASSWORD=$(hex)
+CUSTODE_CRYPTO_KEY=$(fernet)
+
+# No SMTP: the app runs without sending mail (README, "Without SMTP").
+CUSTODE_SMTP_HOST=
+ENV
+
+echo "setup: wrote .env with generated secrets."
+echo "Next:  docker compose up -d          (first start: a few minutes)"
+echo "Then:  open http://localhost:$port and create your household."
+echo "Sample data (optional, local trial only): docker compose run --rm seed-demo"
