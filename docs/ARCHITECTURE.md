@@ -212,7 +212,7 @@ not deleted (ADR-0084). Full walkthrough: [`LOESCHKONZEPT.md`](LOESCHKONZEPT.md)
 - **PWA:** vite-plugin-pwa with app-shell precache and prompt-based updates; API responses are
   never cached by the service worker (shared devices), foreground sync instead of the Background
   Sync API (ADR-0078). A CI gate (`check:pwa`) verifies manifest, service worker and the brand rule.
-- **Budgets:** initial JS < 220 kB gz for the member app and < 160 kB gz for the operator
+- **Budgets:** eager JS + CSS ≤ 231 kB gz for the member app and ≤ 147 kB gz for the operator
   console, libsodium must stay lazy (`scripts/check-bundle-size.mjs`); Lighthouse CI asserts
   mobile budgets on the core route.
 - **Operator console** is a second Vite entry (`index-ops.html`) with its own bundle and a

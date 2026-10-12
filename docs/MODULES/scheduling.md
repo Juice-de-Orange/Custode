@@ -54,7 +54,8 @@ großer Lücke ein Slot der gewünschten Dauer, hart gedeckelt (`MAX_SLOTS`). Je
 ## Schnittstellen
 - **HTTP `/v1/scheduling/slots` (member/admin):** `GET ?from=&to=&duration_min=&day_start=&day_end=&limit=`
   → `list[SlotResponse {start, end, reasons[]}]`. Defaults: Fenster now..now+7 d (max 31 d), Dauer 60 min,
-  Arbeitszeit 7–21 UTC, limit 5. 422 bei leerem Fenster / `day_end <= day_start`.
+  Arbeitszeit 7–21 UTC, limit 5. 422 bei leerem Fenster / `day_end <= day_start` / `from`/`to` ohne
+  Offset.
 - **Cross-Modul:** importiert **nur** `kernel/*` + `calendar.api`. `scheduling.api` ist leer (kein
   Modul importiert scheduling).
 - **Auto-Eintrag:** opt-in — das Web legt aus einem Slot über `POST /v1/calendar/events` ein Event an.

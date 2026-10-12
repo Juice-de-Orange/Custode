@@ -10,7 +10,7 @@ from collections.abc import AsyncIterator
 
 import pytest
 from fastapi import FastAPI
-from httpx import ASGITransport, AsyncClient
+from httpx import ASGITransport, AsyncClient, Response
 
 import app.kernel.db.engine as engine_mod
 from app.main import create_app
@@ -197,6 +197,115 @@ async def test_range_filter(app: FastAPI) -> None:
             params={"from": "2026-07-01T00:00:00+00:00", "to": "2026-07-31T23:59:59+00:00"},
         )
         assert [e["title"] for e in july.json()] == ["Juli"]
+
+
+@pytest.mark.parametrize(
+    "params",
+    [
+        {"from": "2026-07-01T00:00:00", "to": "2026-07-08T00:00:00"},
+        {"from": "2026-07-01T00:00:00"},
+        {"to": "2026-07-08T00:00:00"},
+    ],
+)
+async def test_range_without_offset_is_422_not_500(app: FastAPI, params: dict[str, str]) -> None:
+    # A naive bound used to reach the expansion and fail comparing it with the tz-aware starts_at
+    # (TypeError -> 500). Don't re-raise app errors here, so a regression shows as the 500 it was.
+    transport = ASGITransport(app=app, raise_app_exceptions=False)
+    async with AsyncClient(transport=transport, base_url="http://test") as admin:
+        await _admin_household(admin)
+        await _create_event(admin, title="Juli")
+        await _create_event(admin, title="Standup", rrule="FREQ=WEEKLY")
+        resp = await admin.get("/v1/calendar/events", params=params)
+        assert resp.status_code == 422, resp.text
+        assert resp.headers["content-type"].startswith("application/problem+json")
+        assert resp.json()["type"].endswith("#validation")
+        assert {e["type"] for e in resp.json()["errors"]} == {"timezone_aware"}
+
+
+def _assert_offset_required(resp: Response) -> None:
+    assert resp.status_code == 422, resp.text
+    assert resp.headers["content-type"].startswith("application/problem+json")
+    assert resp.json()["type"].endswith("#validation")
+    assert {e["type"] for e in resp.json()["errors"]} == {"timezone_aware"}
+
+
+@pytest.mark.parametrize(
+    ("action", "body"),
+    [
+        ("cancel-occurrence", {"occurrence_start": "2026-07-08T09:00:00"}),
+        ("restore-occurrence", {"occurrence_start": "2026-07-08T09:00:00"}),
+        ("reset-occurrence", {"occurrence_start": "2026-07-08T09:00:00"}),
+        (
+            "move-occurrence",
+            {
+                "occurrence_start": "2026-07-08T09:00:00",
+                "new_start": "2026-07-08T11:00:00",
+                "new_end": "2026-07-08T12:00:00",
+            },
+        ),
+        (
+            "move-occurrence",
+            {
+                "occurrence_start": "2026-07-08T09:00:00+00:00",
+                "new_start": "2026-07-08T11:00:00",
+                "new_end": "2026-07-08T12:00:00+00:00",
+            },
+        ),
+    ],
+)
+async def test_occurrence_body_without_offset_is_422(
+    app: FastAPI, action: str, body: dict[str, str]
+) -> None:
+    # A naive instant met the tz-aware series (is_occurrence) or, mixed with an aware one, the
+    # end-after-start validator — a TypeError, which pydantic does not turn into a 422 -> 500.
+    transport = ASGITransport(app=app, raise_app_exceptions=False)
+    async with AsyncClient(transport=transport, base_url="http://test") as admin:
+        await _admin_household(admin)
+        series = await _create_event(admin, title="Standup", rrule="FREQ=WEEKLY")
+        resp = await admin.post(
+            f"/v1/calendar/events/{series['id']}/{action}", json=body, headers=_csrf(admin)
+        )
+        _assert_offset_required(resp)
+
+
+@pytest.mark.parametrize(
+    "times",
+    [
+        {"starts_at": "2026-07-01T09:00:00", "ends_at": _T1},
+        {"starts_at": "2026-07-01T09:00:00", "ends_at": "2026-07-01T10:00:00"},
+    ],
+)
+async def test_create_body_without_offset_is_422(app: FastAPI, times: dict[str, str]) -> None:
+    # Mixed naive/aware failed in the end-after-start validator (TypeError -> 500); a naive pair
+    # was stored as if it were UTC. Every in-repo caller sends offsets, so both are input errors.
+    transport = ASGITransport(app=app, raise_app_exceptions=False)
+    async with AsyncClient(transport=transport, base_url="http://test") as admin:
+        await _admin_household(admin)
+        resp = await admin.post(
+            "/v1/calendar/events", json={"title": "Termin", **times}, headers=_csrf(admin)
+        )
+        _assert_offset_required(resp)
+
+
+@pytest.mark.parametrize(
+    "times",
+    [
+        {"starts_at": "2026-07-01T09:30:00"},
+        {"starts_at": "2026-07-01T09:30:00", "ends_at": "2026-07-01T10:30:00"},
+    ],
+)
+async def test_patch_body_without_offset_is_422(app: FastAPI, times: dict[str, str]) -> None:
+    transport = ASGITransport(app=app, raise_app_exceptions=False)
+    async with AsyncClient(transport=transport, base_url="http://test") as admin:
+        await _admin_household(admin)
+        event = await _create_event(admin, title="Zahnarzt")
+        etag = (await admin.get(f"/v1/calendar/events/{event['id']}")).headers["etag"]
+        resp = await admin.patch(
+            f"/v1/calendar/events/{event['id']}",
+            json=times,
+            headers={**_csrf(admin), "If-Match": etag},
+        )
+        _assert_offset_required(resp)
 
 
 async def test_end_before_start_is_rejected(app: FastAPI) -> None:
