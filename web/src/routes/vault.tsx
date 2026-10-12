@@ -282,7 +282,8 @@ function VaultUnlocked({
   const items = useVaultItems();
   const createItem = useCreateItem();
   const deleteItem = useDeleteItem();
-  const [names, setNames] = useState<Record<string, string>>({});
+  // Decrypted names; `null` = this member's key cannot open the entry (see VaultEntryRow).
+  const [names, setNames] = useState<Record<string, string | null>>({});
   const [openId, setOpenId] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [secret, setSecret] = useState("");
@@ -291,7 +292,7 @@ function VaultUnlocked({
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const out: Record<string, string> = {};
+      const out: Record<string, string | null> = {};
       for (const item of items.data ?? []) {
         try {
           out[item.id] = await decryptItemName(
@@ -299,7 +300,7 @@ function VaultUnlocked({
             householdKey,
           );
         } catch {
-          out[item.id] = "??";
+          out[item.id] = null;
         }
       }
       if (!cancelled) setNames(out);
@@ -370,37 +371,103 @@ function VaultUnlocked({
         ) : (
           <ul className="space-y-1">
             {items.data?.map((item) => (
-              <li key={item.id} className="rounded-md border border-stein/30 px-3 py-2">
-                <div className="flex items-center justify-between gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setOpenId(openId === item.id ? null : item.id)}
-                    className="flex items-center gap-1.5 truncate text-left text-sm text-tinte hover:underline dark:text-kalk"
-                  >
-                    <Lock className="size-3.5 shrink-0 text-laurus dark:text-laurus-dark" aria-hidden="true" />
-                    <span className="truncate">{names[item.id] ?? "…"}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => deleteItem.mutate(item.id)}
-                    className="shrink-0 text-xs text-bernstein-text dark:text-bernstein hover:underline"
-                  >
-                    <Trans id="vault.delete" />
-                  </button>
-                </div>
-                {openId === item.id ? (
-                  <SecretReveal
-                    id={item.id}
-                    householdKey={householdKey}
-                    initialName={names[item.id] ?? ""}
-                  />
-                ) : null}
-              </li>
+              <VaultEntryRow
+                key={item.id}
+                id={item.id}
+                name={names[item.id]}
+                open={openId === item.id}
+                onToggle={() => setOpenId(openId === item.id ? null : item.id)}
+                onDelete={() => deleteItem.mutate(item.id)}
+                householdKey={householdKey}
+              />
             ))}
           </ul>
         )}
       </div>
     </section>
+  );
+}
+
+/** One list entry. `name === undefined` while decrypting, `null` when this member's household key
+ *  cannot open it. Such an entry was encrypted under another key — typically by a client that
+ *  stored a lone key (BUGLOG 2026-10-03) — and may be perfectly readable for another member. It
+ *  used to show as "??" with the same one-click delete as any other entry; now it says what it is
+ *  and the delete needs a second, explicit click. It stays deletable: an orphan nobody can read
+ *  any more must not be stuck in the list for good. */
+function VaultEntryRow({
+  id,
+  name,
+  open,
+  onToggle,
+  onDelete,
+  householdKey,
+}: {
+  id: string;
+  name: string | null | undefined;
+  open: boolean;
+  onToggle: () => void;
+  onDelete: () => void;
+  householdKey: Uint8Array;
+}) {
+  const unreadable = name === null;
+  const [confirming, setConfirming] = useState(false);
+  return (
+    <li className="rounded-md border border-stein/30 px-3 py-2">
+      <div className="flex items-center justify-between gap-2">
+        {unreadable ? (
+          <span className="flex items-center gap-1.5 truncate text-sm text-stein-text">
+            <Lock className="size-3.5 shrink-0 text-bernstein-text dark:text-bernstein" aria-hidden="true" />
+            <span className="truncate">
+              <Trans id="vault.unreadable" />
+            </span>
+          </span>
+        ) : (
+          <button
+            type="button"
+            onClick={onToggle}
+            className="flex items-center gap-1.5 truncate text-left text-sm text-tinte hover:underline dark:text-kalk"
+          >
+            <Lock className="size-3.5 shrink-0 text-laurus dark:text-laurus-dark" aria-hidden="true" />
+            <span className="truncate">{name ?? "…"}</span>
+          </button>
+        )}
+        <button
+          type="button"
+          data-action="delete"
+          onClick={() => (unreadable ? setConfirming(true) : onDelete())}
+          className="shrink-0 text-xs text-bernstein-text dark:text-bernstein hover:underline"
+        >
+          <Trans id="vault.delete" />
+        </button>
+      </div>
+      {unreadable ? (
+        <p className="mt-1 text-xs text-stein-text">
+          <Trans id="vault.unreadableHint" />
+        </p>
+      ) : null}
+      {unreadable && confirming ? (
+        <div role="alert" className="mt-2 space-y-2 rounded border border-bernstein/50 bg-bernstein/5 p-2">
+          <p className="text-xs text-tinte dark:text-kalk">
+            <Trans id="vault.unreadableConfirm" />
+          </p>
+          <div className="flex gap-2">
+            <Button size="sm" onClick={onDelete}>
+              <Trans id="vault.unreadableDelete" />
+            </Button>
+            <button
+              type="button"
+              onClick={() => setConfirming(false)}
+              className="text-sm text-stein-text hover:underline"
+            >
+              <Trans id="vault.cancel" />
+            </button>
+          </div>
+        </div>
+      ) : null}
+      {open && !unreadable ? (
+        <SecretReveal id={id} householdKey={householdKey} initialName={name ?? ""} />
+      ) : null}
+    </li>
   );
 }
 
