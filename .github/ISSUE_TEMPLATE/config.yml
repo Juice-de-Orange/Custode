@@ -1,4 +1,8 @@
 blank_issues_enabled: false
+# When GitHub Discussions is switched on for this repository, add it here as the first link:
+#  - name: Ideas and questions (Discussions)
+#    url: https://github.com/Juice-de-Orange/Custode/discussions
+#    about: Open-ended questions, ideas and show-and-tell.
 contact_links:
   - name: Report a security vulnerability
     url: https://github.com/Juice-de-Orange/Custode/security/advisories/new

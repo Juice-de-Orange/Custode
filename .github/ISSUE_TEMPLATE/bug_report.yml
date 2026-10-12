@@ -1,5 +1,5 @@
 name: Bug report
-description: Something does not work as specified in KONFIG/ or documented.
+description: Something does not work as the README or the docs say it should.
 labels: [bug]
 body:
   - type: markdown
@@ -36,7 +36,7 @@ body:
     id: setup
     attributes:
       label: Setup
-      description: Commit, browser/device, dev stack or production compose, Postgres version.
+      description: Version or image tag (or commit), how you run it (quick start, production compose behind a proxy, dev stack), browser and device.
     validations:
       required: true
   - type: textarea

@@ -1,5 +1,7 @@
 # Production web image (used from Phase 8 onward; dev runs `npm run dev` on host).
-FROM node:22-alpine AS build
+# The build stage runs on the builder's own platform: its output (static files) is the same for
+# every target, so a multi-arch release does not have to emulate npm and Vite on arm64.
+FROM --platform=$BUILDPLATFORM node:22-alpine AS build
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci

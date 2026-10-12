@@ -31,8 +31,20 @@ history (June–September 2026, German) is not part of the public repository.
 - The `web` service has the network alias `custode-web`: point your proxy at `custode-web:80`,
   independent of the Compose project name.
 
+- One-command start: `./setup` writes `.env` with generated secrets, `docker compose up -d` runs
+  the stack on `http://localhost:8080` (`docker-compose.quickstart.yml`), and
+  `docker compose run --rm seed-demo` adds a sample household without any host toolchain.
+- Release workflow: every `v*` tag publishes `ghcr.io/juice-de-orange/custode-api` and
+  `custode-web` for linux/amd64 and linux/arm64; `docker-compose.prod.yml` pulls them and keeps
+  `build:` as the fallback. A `migrate` job applies the migrations before the app starts.
+- Issue template for questions; README hero animation and "How it compares".
+
 ### Changed
 
+- The interface falls back to English (was German) when the browser asks for neither language;
+  the installable app's manifest, the page language and the screen-reader labels of the
+  navigation are English by default. `.env.prod.example` and the comments in
+  `docker-compose.prod.yml` are English.
 - README: the tagline says "self-hosted" instead of "EU-hosted" (there is no hosted service);
   quick-capture is described as it works (deterministic parsing, an optional local LLM enriches
   free text); a "Known limitations" section.

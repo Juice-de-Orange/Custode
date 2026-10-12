@@ -12,6 +12,7 @@ import { NoHouseholdState } from "../components/no-household";
 import { OfflineDot } from "../components/offline-dot";
 import { PwaUpdateToast } from "../components/pwa-update-toast";
 import { ThemeToggle } from "../components/theme-toggle";
+import { i18n } from "../i18n";
 import { useRealtime } from "../realtime/useRealtime";
 
 // Routes that work without an active household: account (create/join/switch lives
@@ -47,7 +48,7 @@ export function RootLayout() {
     <div className="min-h-screen bg-kalk text-tinte dark:bg-nacht dark:text-kalk">
       {/* Global operator banners (maintenance notices) — quiet bar above everything, P8-S8b. */}
       {(banners.data?.length ?? 0) > 0 ? (
-        <div aria-label="Hinweise" role="region">
+        <div aria-label={i18n._("a11y.notices")} role="region">
           {banners.data?.map((b) => (
             <div
               key={b.id}
@@ -85,7 +86,7 @@ export function RootLayout() {
           {needsHousehold ? <NoHouseholdState /> : <Outlet />}
         </main>
         <footer className="border-t border-stein/15 px-4 py-4 text-xs text-stein-text md:px-8">
-          <nav aria-label="Rechtliches" className="mx-auto flex max-w-3xl gap-4">
+          <nav aria-label={i18n._("a11y.legalNav")} className="mx-auto flex max-w-3xl gap-4">
             <Link to="/neuigkeiten" className="hover:underline">
               <Trans id="releases.title" />
             </Link>
