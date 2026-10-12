@@ -11,6 +11,8 @@ from functools import lru_cache
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app import __version__
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -69,7 +71,7 @@ class Settings(BaseSettings):
     otlp_endpoint: str | None = None
     # Build info surfaced in the ops console (§12): injected at deploy from the image tag/commit.
     git_sha: str = "unknown"
-    app_version: str = "0.0.0"
+    app_version: str = __version__
 
     # Sessions (KONZEPT §8.5): short-lived access, long-lived rotating refresh.
     access_token_ttl_s: int = 900  # 15 min

@@ -32,22 +32,22 @@ household (sign in as `admin@custode.local` / `custode-admin-demo` — a publish
 on a trial instance).
 
 From `git clone` to the sign-in page took **about 4 minutes** (253 s) on a clean Docker host — no
-cached images, a ~90 Mbit/s line — measured on 2026-10-12 while building from source: there is
-no release with published images yet. Once there is, `up` pulls them from GHCR instead of
-building. Needs Docker with Compose v2.24 or newer (tested with 2.33 and 5.6) and about 2 GB of
-disk. The quick start listens on 127.0.0.1 only; to use Custode from other devices, put it behind
-HTTPS ([Self-hosting](#self-hosting), [`docs/operations.md`](docs/operations.md)).
+cached images, a ~90 Mbit/s line — measured on 2026-10-12 while building from source, before
+v0.1.0 published its images. Since v0.1.0, `up` pulls the images from GHCR and builds only an
+image it cannot pull. Needs Docker with Compose v2.24 or newer (tested with 2.33 and 5.6) and
+about 2 GB of disk. The quick start listens on 127.0.0.1 only; to use Custode from other devices,
+put it behind HTTPS ([Self-hosting](#self-hosting), [`docs/operations.md`](docs/operations.md)).
 
-> **Status: beta, one maintainer, no release yet.** All modules of roadmap phases 0–9 are built
-> (CalDAV two-way sync, Oura, GDPR export and erasure included); hardening is in progress; the
-> Android app has not started. The maintainer runs one instance for a private household; there is
-> no hosted service. Two functional checks ran against a fresh clone — the README followed
-> literally, the PWA used in a real browser — covering registration with mail, households with a
-> second member and a child, tasks, rooms, shopping, calendar (CalDAV against Radicale, ICS),
-> notes, recipes, guides, quick-capture, letters, vault, passkeys and TOTP, tenant isolation, GDPR
-> export, the operator console, backup and restore. **Not covered:** real SMTP delivery, Oura,
-> quick-capture with an LLM, hardware authenticators (a virtual one was used), operation behind a
-> TLS-terminating proxy. Issues and pull requests are welcome.
+> **Status: beta — v0.1.0 is the first release; one maintainer.** All modules of roadmap phases
+> 0–9 are built (CalDAV two-way sync, Oura, GDPR export and erasure included); hardening is in
+> progress; the Android app has not started. The maintainer runs one instance for a private
+> household; there is no hosted service. Two functional checks ran against a fresh clone — the
+> README followed literally, the PWA used in a real browser — covering registration with mail,
+> households with a second member and a child, tasks, rooms, shopping, calendar (CalDAV against
+> Radicale, ICS), notes, recipes, guides, quick-capture, letters, vault, passkeys and TOTP, tenant
+> isolation, GDPR export, the operator console, backup and restore. **Not covered:** real SMTP
+> delivery, Oura, quick-capture with an LLM, hardware authenticators (a virtual one was used),
+> operation behind a TLS-terminating proxy. Issues and pull requests are welcome.
 >
 > Built with AI assistance.
 
@@ -68,7 +68,7 @@ release on 2026-10-12:
 | | Custode | [Grocy](https://grocy.info) | [Mealie](https://mealie.io) | [Tandoor](https://tandoor.dev) | [KitchenOwl](https://kitchenowl.org) |
 |---|---|---|---|---|---|
 | Licence | AGPL-3.0 | MIT | AGPL-3.0 | AGPL-3.0 + Commons Clause | AGPL-3.0 |
-| Since / latest release | 2026 / none yet (beta) | 2017 / v4.7.1 | 2020 / v3.28.0 | 2019 / 2.6.15 | 2021 / v0.7.10 (alpha) |
+| Since / latest release | 2026 / v0.1.0 (beta) | 2017 / v4.7.1 | 2020 / v3.28.0 | 2019 / 2.6.15 | 2021 / v0.7.10 (alpha) |
 | Recipe import from a URL | yes (schema.org) | add-on only | yes, plus AI and video import | yes, plus AI import | yes |
 | Import from other apps | – | – | 9 apps | ~22 apps | – |
 | Meal planner | yes, with auto-fill | yes | yes | yes | yes |
@@ -88,7 +88,7 @@ Where they are better: Grocy has eight years of history and real pantry tooling 
 scanners, Open Food Facts, expiry, locations and prices), and it already ships chores and an iCal
 feed. Mealie and Tandoor have hundreds of contributors and import recipes from far more sources
 and apps. KitchenOwl has official native apps and expense splitting. All four have many more
-translations, SSO, a larger community and published releases; Custode has none of that yet.
+translations, SSO, a larger community and years of releases; Custode has none of that yet.
 
 ## Why
 

@@ -6,8 +6,17 @@ history (June–September 2026, German) is not part of the public repository.
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-12
+
+The first public release of Custode, under AGPL-3.0. It is a beta: see the README's status box
+for what was checked and what was not.
+
 ### Added
 
+- Initial public release under AGPL-3.0: all modules of roadmap phases 0–9 (accounts and
+  households, recipes and nutrition, meal planner, shopping list, calendars with CalDAV sync,
+  tasks with points ledger and marketplace, vault, messaging, guides, notes, comments, wearables,
+  weather, quick-capture), the operator console, GDPR export and erasure with purge jobs.
 - Public demo mode (`CUSTODE_DEMO_MODE=on`, default off): one shared demo household whose login
   the sign-in page fills in, a banner on every page (English and German), sign-up, mail, invites,
   uploads, imports, ICS/CalDAV, vault, integrations, the live stream and the operator console
@@ -16,21 +25,16 @@ history (June–September 2026, German) is not part of the public repository.
   internet for the app, one port on `127.0.0.1`, limits per service, rotated logs), and
   `python -m app.scripts.demo_reset` puts the household back every hour. The demo seed has an
   English variant (`python -m app.scripts.seed_demo --lang en`). See `docs/demo.md`.
-- Initial public release under AGPL-3.0: all modules of roadmap phases 0–9 (accounts and
-  households, recipes and nutrition, meal planner, shopping list, calendars with CalDAV sync,
-  tasks with points ledger and marketplace, vault, messaging, guides, notes, comments, wearables,
-  weather, quick-capture), the operator console, GDPR export and erasure with purge jobs.
 - Source-code link in the app footer (AGPL §13), English `README.md` and `docs/ARCHITECTURE.md`,
   contributor documentation, hardened CI, CodeQL, Dependabot.
 - A lived-in demo household for `make seed-demo`.
-- The English interface is reachable: the UI follows the browser language (German as fallback)
+- The English interface is reachable: the UI follows the browser language (English as fallback)
   and can be pinned per browser under Profile → Language.
 - The account page shows admins the sign-in link for child accounts, with a copy button.
 - `docs/operations.md`: the operator guide in English — install, configure, reverse proxy, legal
   pages, backup, restore, update (with draining the job queue first), logs and health.
 - The `web` service has the network alias `custode-web`: point your proxy at `custode-web:80`,
   independent of the Compose project name.
-
 - One-command start: `./setup` writes `.env` with generated secrets, `docker compose up -d` runs
   the stack on `http://localhost:8080` (`docker-compose.quickstart.yml`), and
   `docker compose run --rm seed-demo` adds a sample household without any host toolchain.

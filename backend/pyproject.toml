@@ -1,6 +1,6 @@
 [project]
 name = "custode-backend"
-version = "0.0.0"
+version = "0.1.0"
 description = "Custode backend — FastAPI modular monolith"
 requires-python = ">=3.12"
 license = "AGPL-3.0-only"

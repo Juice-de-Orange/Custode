@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from app import __version__
 from app.adapters.null import NullLlm
 from app.adapters.ollama.llm import OllamaLlm
 from app.caldav_factory import build_caldav
@@ -87,7 +88,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(
         title=f"{settings.brand_name} API",
-        version="0.0.0",
+        version=__version__,
         lifespan=lifespan,
     )
     app.state.settings = settings
