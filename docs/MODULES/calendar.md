@@ -143,7 +143,8 @@ Tx-Rollback bei jedem Fehlschlag; der Request-Pfad bekommt den Port via `app.sta
 ## Schnittstellen
 - **HTTP `/v1/calendar/import` (member/admin, CSRF):** `POST {content, layer}` → `IcsImportResult`.
 - **HTTP `/v1/calendar/events` (member/admin, Kinder ✗ in S1):** `GET ?from=&to=` (sichtbare Events,
-  optional Zeitfenster — Overlap `starts_at<=to AND ends_at>=from`) · `POST` · `GET {id}` (+ETag) ·
+  optional Zeitfenster — Overlap `starts_at<=to AND ends_at>=from`; `from`/`to` nur mit Offset,
+  sonst 422 `validation`) · `POST` · `GET {id}` (+ETag) ·
   `PATCH {id}` (If-Match, owner-only) · `DELETE {id}` (Soft-Delete, owner-only) ·
   `POST {id}/cancel-occurrence` · `POST {id}/restore-occurrence` (absagen/zurücknehmen) ·
   `POST {id}/move-occurrence` · `POST {id}/reset-occurrence` (verschieben/zurücksetzen) — alle

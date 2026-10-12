@@ -40,6 +40,9 @@ history (June–September 2026, German) is not part of the public repository.
   JSON and always failed with 422.
 - The operator console's theme button named its mode with a raw message id.
 - Calendar: an end before the start is reported at the end field instead of the generic error.
+- Calendar and scheduling: a `from`/`to` query bound without a time-zone offset
+  (`GET /v1/calendar/events?from=2026-07-01T00:00:00`, same for `/v1/scheduling/slots`) is
+  rejected with `422 validation`; it failed with 500.
 - `create_operator` refuses an argument that is not an e-mail address.
 - `make install` uses `npm ci`, which leaves `web/package-lock.json` untouched.
 - Worker: taskiq worker children no longer die every five seconds on an idle queue (redis-py 8

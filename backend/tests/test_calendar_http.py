@@ -199,6 +199,29 @@ async def test_range_filter(app: FastAPI) -> None:
         assert [e["title"] for e in july.json()] == ["Juli"]
 
 
+@pytest.mark.parametrize(
+    "params",
+    [
+        {"from": "2026-07-01T00:00:00", "to": "2026-07-08T00:00:00"},
+        {"from": "2026-07-01T00:00:00"},
+        {"to": "2026-07-08T00:00:00"},
+    ],
+)
+async def test_range_without_offset_is_422_not_500(app: FastAPI, params: dict[str, str]) -> None:
+    # A naive bound used to reach the expansion and fail comparing it with the tz-aware starts_at
+    # (TypeError -> 500). Don't re-raise app errors here, so a regression shows as the 500 it was.
+    transport = ASGITransport(app=app, raise_app_exceptions=False)
+    async with AsyncClient(transport=transport, base_url="http://test") as admin:
+        await _admin_household(admin)
+        await _create_event(admin, title="Juli")
+        await _create_event(admin, title="Standup", rrule="FREQ=WEEKLY")
+        resp = await admin.get("/v1/calendar/events", params=params)
+        assert resp.status_code == 422, resp.text
+        assert resp.headers["content-type"].startswith("application/problem+json")
+        assert resp.json()["type"].endswith("#validation")
+        assert {e["type"] for e in resp.json()["errors"]} == {"timezone_aware"}
+
+
 async def test_end_before_start_is_rejected(app: FastAPI) -> None:
     async with _client(app) as admin:
         await _admin_household(admin)
