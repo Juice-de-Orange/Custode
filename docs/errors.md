@@ -317,6 +317,19 @@ is not in the trash).
 
 ---
 
+## Demo mode
+
+`CUSTODE_DEMO_MODE=on`, `app/demo.py`, [demo.md](demo.md). Only a public demo instance produces these; with the flag off they do not exist. The middleware
+answers before routing, so the codes apply to every path in its list, whatever module owns it.
+
+| slug | HTTP | Meaning |
+|---|---|---|
+| `demo_disabled` | 403 | The demo does not allow this action: sign-up, password reset, e-mail, invites, child accounts, membership changes, TOTP/passkeys/profile of the shared account, uploads, imports, ICS feeds, CalDAV, vault, Oura, weather lookups, feedback, live updates, operator console. The list is `BLOCKED` in `app/demo.py` |
+| `demo_payload_too_large` | 413 | Request body over `CUSTODE_DEMO_MAX_BODY_BYTES` (default 256 KiB) |
+| `demo_rate_limited` | 429 | More than `CUSTODE_DEMO_RATE_LIMIT` requests from one client address in one window; `Retry-After` says how long to wait |
+
+---
+
 ## `feature_disabled` as cross-cutting
 
 Today produced only by `wearables`. With flag enforcement (roadmap Phase 11) it becomes the slug

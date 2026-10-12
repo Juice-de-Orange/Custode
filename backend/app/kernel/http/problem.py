@@ -77,6 +77,19 @@ def _problem(
     return response
 
 
+def problem_response(request: Request, exc: ProblemException) -> JSONResponse:
+    """Render a :class:`ProblemException` outside the exception handlers — for a middleware that
+    answers before routing (Starlette's handlers only see what the router raises)."""
+    return _problem(
+        status=exc.status,
+        slug=exc.slug,
+        title=exc.title,
+        detail=exc.detail,
+        reference=_reference(request),
+        extra=exc.extra,
+    )
+
+
 def install_problem_handlers(app: FastAPI) -> None:
     @app.exception_handler(ProblemException)
     async def _on_problem(request: Request, exc: ProblemException) -> JSONResponse:

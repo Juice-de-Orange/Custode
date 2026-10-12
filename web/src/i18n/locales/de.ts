@@ -817,4 +817,11 @@ export const messages: Record<string, string> = {
     "Den Haushalts-Export können nur Admins erstellen. Deine eigenen Daten kannst du weiterhin herunterladen.",
   "export.err.session": "Deine Sitzung ist abgelaufen. Bitte neu anmelden und noch einmal versuchen.",
   "export.err.generic": "Der Export hat nicht geklappt. Bitte noch einmal versuchen.",
+  "demo.banner": "Demo — die Daten werden stündlich zurückgesetzt. Bitte keine persönlichen Daten eingeben.",
+  "demo.banner.resetting": "Demo — die Daten werden gerade zurückgesetzt. Bitte in einer Minute neu laden.",
+  "demo.refused": "Diese Aktion ist in der Demo abgeschaltet.",
+  "demo.login": "Das ist die öffentliche Demo. Der gemeinsame Zugang ist eingetragen: {email} / {password}",
+  "demo.noSignup": "Die Registrierung ist in der Demo abgeschaltet. Nutze den gemeinsamen Demo-Zugang auf der Anmeldeseite.",
+  "demo.noMail": "Die Demo verschickt keine E-Mails, Passwörter lassen sich hier nicht zurücksetzen. Der gemeinsame Demo-Zugang steht auf der Anmeldeseite.",
+  "demo.noVault": "Der Tresor ist in der Demo abgeschaltet. Auf deiner eigenen Instanz speichert er gemeinsame Passwörter, im Browser verschlüsselt.",
 };

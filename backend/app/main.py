@@ -10,6 +10,7 @@ from fastapi import FastAPI
 from app.adapters.null import NullLlm
 from app.adapters.ollama.llm import OllamaLlm
 from app.caldav_factory import build_caldav
+from app.demo import install_demo_mode
 from app.export_policy import ATTACHMENT_COLUMNS, EXCLUDED
 from app.export_policy import POLICY as EXPORT_POLICY
 from app.kernel.http.export import router as export_router
@@ -102,6 +103,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.export_excluded = EXCLUDED
     app.state.export_attachment_columns = ATTACHMENT_COLUMNS
 
+    # Demo mode (docs/demo.md) sits INSIDE the request context, so its refusals carry a reference
+    # code like every other problem response. Off -> nothing is installed.
+    install_demo_mode(app, settings)
     app.add_middleware(RequestContextMiddleware)
     install_problem_handlers(app)
     app.include_router(health_router)

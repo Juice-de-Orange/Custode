@@ -7,6 +7,7 @@ import { useSession } from "../auth/session";
 import { AppBottomBar, AppSidebar } from "../components/app-nav";
 import { BrandMark } from "../components/brand-mark";
 import { CommandPalette } from "../components/command-palette";
+import { DemoBanner } from "../components/demo-banner";
 import { NoHouseholdState } from "../components/no-household";
 import { OfflineDot } from "../components/offline-dot";
 import { PwaUpdateToast } from "../components/pwa-update-toast";
@@ -78,6 +79,9 @@ export function RootLayout() {
       {/* Desktop: fixed grouped sidebar; main is offset by its width. */}
       {signedIn ? <AppSidebar onSearch={() => setCmdkOpen(true)} /> : null}
       <div className={signedIn ? "md:pl-60" : ""}>
+        {/* Public demo instances only (docs/demo.md); renders nothing elsewhere. Inside the
+            content column so the fixed desktop sidebar cannot cover it. */}
+        <DemoBanner />
         <main className="mx-auto w-full max-w-3xl px-4 py-8 pb-content-bottom md:px-8 md:py-10 md:pb-10">
           {needsHousehold ? <NoHouseholdState /> : <Outlet />}
         </main>

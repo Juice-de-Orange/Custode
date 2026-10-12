@@ -7,6 +7,7 @@ import { useSession } from "../auth/session";
 import { Button } from "../components/button";
 import { EmptyState, ErrorState, LoadingState } from "../components/states";
 import { i18n } from "../i18n";
+import { useDemo } from "../lib/demo";
 import { ProblemError } from "../lib/problem";
 import {
   decryptItemBody,
@@ -38,7 +39,9 @@ export function VaultPage() {
   // Children and guests have no vault (Root-CLAUDE.md; the API answers 403). Say so instead of
   // asking and showing the generic error.
   const excluded = session?.role === "child" || session?.role === "guest";
-  const keys = useVaultKeys(!!session && !excluded);
+  // A public demo has no vault at all (the server refuses every vault route, docs/demo.md).
+  const demo = useDemo() !== null;
+  const keys = useVaultKeys(!!session && !excluded && !demo);
   const putKey = usePutKey();
 
   // The unlocked household key — in memory only, never persisted.
@@ -54,14 +57,14 @@ export function VaultPage() {
   }, [sessionLoading, session, navigate]);
 
   if (sessionLoading || !session) return <LoadingState />;
-  if (excluded) {
+  if (excluded || demo) {
     return (
       <section aria-labelledby="vault-heading" className="max-w-md space-y-4">
         <h1 id="vault-heading" className="font-display text-2xl">
           <Trans id="nav.vault" />
         </h1>
         <EmptyState>
-          <Trans id="vault.notForChildren" />
+          <Trans id={demo ? "demo.noVault" : "vault.notForChildren"} />
         </EmptyState>
       </section>
     );

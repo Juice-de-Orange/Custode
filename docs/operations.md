@@ -1,7 +1,7 @@
 # Operations
 
 How to run your own Custode instance: install, configure, put a proxy in front, back up, restore
-and update. This is the English summary of the operational parts of ADR-0020 (production
+and update. (A public demo for strangers is a different setup: [demo.md](demo.md).) This is the English summary of the operational parts of ADR-0020 (production
 deployment) and ADR-0024 (Caddy front), both German, plus what an operator needs from
 `docker-compose.prod.yml`, `.env.prod.example` and `infra/`. Every command below was run as
 written on a fresh stack with data (the only change for that run: a Compose project name and

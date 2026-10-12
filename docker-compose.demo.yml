@@ -1,0 +1,252 @@
+# Custode — public demo stack (docs/demo.md).
+#
+# One shared demo household, a login printed on the sign-in page, data restored every hour.
+# Built for a host that also runs other things, reached by visitors through a tunnel:
+#   * its own Compose project (`custode-demo`) and networks — nothing is shared with another stack;
+#   * api, worker, scheduler, reset, postgres and redis sit on an INTERNAL network without a route
+#     to the internet; only `web` (Caddy) is also on the edge network;
+#   * exactly one host port, bound to 127.0.0.1 — point the tunnel at it;
+#   * memory, CPU and process limits per service, rotated logs;
+#   * CUSTODE_DEMO_MODE=on: sign-up, mail, uploads, vault, CalDAV/ICS, integrations and the
+#     operator console are refused server-side, requests are rate-limited per visitor.
+#
+#   docker compose -f docker-compose.demo.yml --env-file .env.demo up -d
+#
+# .env.demo holds the five database passwords (one-liner in docs/demo.md); nothing else is needed.
+
+name: custode-demo
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-hardening: &hardening
+  restart: unless-stopped
+  logging: *logging
+  security_opt:
+    - no-new-privileges:true
+
+x-app-image: &app-image
+  image: ghcr.io/juice-de-orange/custode-api:${CUSTODE_VERSION:-latest}
+  build:
+    context: ./backend
+
+x-app-env: &app-env
+  CUSTODE_ENV: production
+  CUSTODE_DEMO_MODE: "on"
+  CUSTODE_LOG_JSON: "true"
+  CUSTODE_DATABASE_URL: postgresql+asyncpg://custode_app:${APP_DB_PASSWORD:?set APP_DB_PASSWORD in .env.demo}@postgres:5432/custode
+  CUSTODE_DATABASE_URL_MAINT: postgresql+asyncpg://custode_maint:${MAINT_DB_PASSWORD:?set MAINT_DB_PASSWORD in .env.demo}@postgres:5432/custode
+  CUSTODE_DATABASE_URL_ADMIN: postgresql+asyncpg://custode:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.demo}@postgres:5432/custode
+  CUSTODE_REDIS_URL: redis://redis:6379/0
+  # Demo mode switches every external adapter off by itself (settings.py); these say it twice.
+  CUSTODE_SMTP_HOST: ""
+  CUSTODE_WEATHER_PROVIDER: "null"
+  CUSTODE_CALDAV_SYNC_ENABLED: "false"
+  CUSTODE_OURA_ENABLED: "false"
+  CUSTODE_PUBLIC_BASE_URL: ${CUSTODE_PUBLIC_BASE_URL:-http://localhost:8090}
+  # The edge header that names the visitor (rate limit key). Cloudflare sets and overwrites
+  # CF-Connecting-IP; set it empty when the tunnel is not Cloudflare's.
+  CUSTODE_DEMO_CLIENT_IP_HEADER: ${CUSTODE_DEMO_CLIENT_IP_HEADER-CF-Connecting-IP}
+  CUSTODE_DEMO_RATE_LIMIT: ${CUSTODE_DEMO_RATE_LIMIT:-60}
+  CUSTODE_DEMO_RATE_WINDOW_S: ${CUSTODE_DEMO_RATE_WINDOW_S:-10}
+
+networks:
+  backend:
+    internal: true # no route to the internet
+  edge: {}
+
+services:
+  postgres:
+    <<: *hardening
+    image: postgres:18
+    environment:
+      POSTGRES_USER: custode
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.demo}
+      POSTGRES_DB: custode
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?set APP_DB_PASSWORD in .env.demo}
+      MAINT_DB_PASSWORD: ${MAINT_DB_PASSWORD:?set MAINT_DB_PASSWORD in .env.demo}
+      # The init script creates the operator roles too; the demo never uses them.
+      OPS_DB_PASSWORD: ${OPS_DB_PASSWORD:?set OPS_DB_PASSWORD in .env.demo}
+      OPS_ACTIONS_DB_PASSWORD: ${OPS_ACTIONS_DB_PASSWORD:?set OPS_ACTIONS_DB_PASSWORD in .env.demo}
+    volumes:
+      - ./infra/postgres/init.prod.sh:/docker-entrypoint-initdb.d/10-init.sh:ro
+      - pgdata:/var/lib/postgresql
+    networks: [backend]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U custode -d custode"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    shm_size: 64m
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+          cpus: "1.0"
+          pids: 200
+
+  redis:
+    <<: *hardening
+    image: redis:7-alpine
+    # No persistence: sessions, the job queue and rate-limit counters may vanish with a restart.
+    # Under memory pressure only keys with a TTL (tokens, counters) are evicted, never the queue.
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "48mb", "--maxmemory-policy", "volatile-lru"]
+    networks: [backend]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+          cpus: "0.25"
+          pids: 50
+
+  migrate:
+    <<: [*hardening, *app-image]
+    restart: "no"
+    command: ["alembic", "upgrade", "head"]
+    environment: *app-env
+    networks: [backend]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+
+  api:
+    <<: [*hardening, *app-image]
+    # Concurrency cap: beyond 64 open requests uvicorn answers 503 instead of queueing without end.
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*", "--limit-concurrency", "64", "--timeout-keep-alive", "5"]
+    environment: *app-env
+    networks: [backend]
+    read_only: true
+    tmpfs: [/tmp]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+          cpus: "1.0"
+          pids: 100
+
+  worker:
+    <<: [*hardening, *app-image]
+    command: ["taskiq", "worker", "app.worker:broker", "--workers", "1"]
+    environment: *app-env
+    networks: [backend]
+    read_only: true
+    tmpfs: [/tmp]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import redis,os; redis.from_url(os.environ['CUSTODE_REDIS_URL']).ping()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+          pids: 100
+
+  scheduler:
+    <<: [*hardening, *app-image]
+    command: ["taskiq", "scheduler", "app.worker:scheduler"]
+    environment: *app-env
+    networks: [backend]
+    read_only: true
+    tmpfs: [/tmp]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import redis,os; redis.from_url(os.environ['CUSTODE_REDIS_URL']).ping()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 192M
+          cpus: "0.25"
+          pids: 50
+
+  # The hourly reset: seeds the demo household on first start, then restores it at every full
+  # hour (app/scripts/demo_reset.py). Part of the demo, not optional — without it the shared
+  # household keeps whatever the last visitor wrote.
+  demo-reset:
+    <<: [*hardening, *app-image]
+    command: ["python", "-m", "app.scripts.demo_reset", "--loop", "--lang", "${CUSTODE_DEMO_LANG:-en}"]
+    environment: *app-env
+    networks: [backend]
+    read_only: true
+    tmpfs: [/tmp]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import redis,os; redis.from_url(os.environ['CUSTODE_REDIS_URL']).ping()"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+          pids: 50
+
+  web:
+    <<: *hardening
+    image: ghcr.io/juice-de-orange/custode-web:${CUSTODE_VERSION:-latest}
+    build:
+      context: ./web
+    environment:
+      # The Caddyfile reads this: noindex header, robots.txt, request body cap (infra/caddy).
+      CUSTODE_DEMO_MODE: "on"
+      # The operator console's site block must never answer on the demo.
+      OPS_HOST: ops.demo.invalid
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # The demo's imprint/privacy pages (docs/operations.md, "Legal pages").
+      - ${CUSTODE_LEGAL_DIR:-./legal}:/srv/legal:ro
+    networks:
+      backend: {}
+      edge: {}
+    # The one host port. The tunnel connects to it; nothing else should.
+    ports:
+      - "127.0.0.1:${CUSTODE_DEMO_PORT:-8090}:80"
+    depends_on:
+      - api
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+          cpus: "0.5"
+          pids: 50
+
+volumes:
+  pgdata:

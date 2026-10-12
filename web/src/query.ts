@@ -1,5 +1,6 @@
 import { MutationCache, QueryCache, QueryClient } from "@tanstack/react-query";
 
+import { notifyDemoDisabled } from "./lib/demo";
 import { recordDiagnostic } from "./lib/diagnostics";
 import { ProblemError } from "./lib/problem";
 
@@ -8,6 +9,7 @@ import { ProblemError } from "./lib/problem";
 function recordError(error: unknown): void {
   const ref = error instanceof ProblemError ? error.reference : undefined;
   const slug = error instanceof ProblemError ? error.slug : undefined;
+  if (slug === "demo_disabled") notifyDemoDisabled(); // the demo banner says why
   recordDiagnostic({
     route: typeof window !== "undefined" ? window.location.pathname : null,
     error_ref: ref ?? slug ?? null,

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -144,6 +144,40 @@ class Settings(BaseSettings):
     # measured DAY. Retention runs even with the adapter switched off: data must age out
     # regardless of whether new data arrives.
     wearable_raw_retention_days: int = 90  # CUSTODE_WEARABLE_RAW_RETENTION_DAYS
+
+    # Public demo (docs/demo.md). OFF by default, and off means no effect at all. On: one shared
+    # demo household whose login the sign-in page shows; every path that creates accounts, sends
+    # mail, stores files or talks to the outside answers 403 ``demo_disabled`` (``app/demo.py``),
+    # requests are rate-limited per client IP, and ``demo-reset`` restores the seed every hour.
+    demo_mode: bool = False  # CUSTODE_DEMO_MODE=on
+    # The demo runs behind a tunnel: the client address is the tunnel's unless the edge names the
+    # visitor. Cloudflare sets CF-Connecting-IP and overwrites any value the client sent; empty ->
+    # the socket peer is the key (use that when nothing trustworthy sets the header).
+    demo_client_ip_header: str = "CF-Connecting-IP"
+    # Fixed-window rate limit per client IP (Redis). A first page load of the PWA makes ~20 calls.
+    demo_rate_limit: int = 60  # requests per window
+    demo_rate_window_s: int = 10
+    # Largest request body the demo accepts (the edge proxy enforces the same cap for chunked
+    # bodies, infra/caddy/Caddyfile).
+    demo_max_body_bytes: int = 256 * 1024
+
+    @model_validator(mode="after")
+    def _demo_switches_off_the_outside(self) -> Settings:
+        """In demo mode every external adapter is off at the settings layer, whatever the
+        environment says — so api, worker and scheduler all compose Null adapters and nothing a
+        visitor does can reach SMTP, CalDAV servers, Oura, an LLM, GitHub, Open-Meteo or the
+        blob store. The request paths are refused separately (``app/demo.py``); this is the second
+        wall behind them."""
+        if self.demo_mode:
+            self.smtp_host = ""
+            self.caldav_sync_enabled = False
+            self.oura_enabled = False
+            self.ollama_enabled = False
+            self.github_token = None
+            self.github_repo = None
+            self.weather_provider = "null"
+            self.storage_dir = None
+        return self
 
 
 def require_runtime_settings(settings: Settings) -> None:
