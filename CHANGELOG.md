@@ -44,6 +44,12 @@ history (June–September 2026, German) is not part of the public repository.
   `.env.prod.example`, `infra/postgres/init.prod.sh`, `infra/caddy/Caddyfile`); the deploy job
   is not part of the public CI.
 - Problem-type URIs point at the error catalogue in this repository.
+- E-mails (verification, password reset, weekly digest) are written in the recipient's account
+  language — German for a German locale, English otherwise — instead of always German. The web
+  app stores the interface language on the account at registration and on a change in the
+  profile.
+- API problem responses have English `title` and `detail` texts (slugs unchanged; the web app
+  translates by slug as before), and `docs/errors.md` is in English.
 
 ### Fixed
 

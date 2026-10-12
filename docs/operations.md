@@ -83,6 +83,12 @@ it). Registration and login work, accounts stay "e-mail not verified" (nothing i
 and no mail is sent at all: no verification, no weekly digest, **no password reset** — a member
 who forgets the password cannot reset it.
 
+**Mail language.** Each mail (verification, password reset, weekly digest) is written in the
+recipient's account language: German for a German locale, English for everything else. The web
+app sets it at registration from the interface language and updates it when the person changes
+the language on their profile page; accounts created through the API without a `locale` start in
+German.
+
 ## Reverse proxy
 
 `web` publishes no host port. Two ways to reach it:
@@ -234,7 +240,7 @@ curl -fsS http://127.0.0.1:8080/readyz
 Logs are JSON (`CUSTODE_LOG_JSON=true`). Every API error response carries a `reference` code;
 for an unexpected server error (5xx) the api logs the full traceback under the same reference, so
 a support request can be matched to the log line. The error codes are listed in
-`docs/errors.md` (German).
+`docs/errors.md`.
 
 ## Known limits
 

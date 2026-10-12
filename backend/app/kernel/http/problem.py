@@ -94,8 +94,8 @@ def install_problem_handlers(app: FastAPI) -> None:
         return _problem(
             status=422,
             slug="validation",
-            title="Eingabe ungültig",
-            detail="Validierung fehlgeschlagen.",
+            title="Invalid input",
+            detail="Validation failed.",
             reference=_reference(request),
             extra={"errors": jsonable_encoder(exc.errors())},
         )
@@ -107,7 +107,7 @@ def install_problem_handlers(app: FastAPI) -> None:
         return _problem(
             status=exc.status_code,
             slug=slug,
-            title=detail or "Fehler",
+            title=detail or "Error",
             reference=_reference(request),
         )
 
@@ -133,7 +133,7 @@ def install_problem_handlers(app: FastAPI) -> None:
         return _problem(
             status=500,
             slug="internal",
-            title="Unerwarteter Fehler",
-            detail="Bitte versuche es erneut. Nenne beim Melden den Referenzcode.",
+            title="Unexpected error",
+            detail="Please try again. Quote the reference code when you report it.",
             reference=reference,
         )

@@ -36,7 +36,7 @@ async def create_link(
     b: _Endpoint = (data.b_type, data.b_id)
     if a == b:
         raise ProblemException(
-            slug="invalid", title="Objekt nicht mit sich selbst verknüpfbar", status=422
+            slug="invalid", title="An object cannot be linked to itself", status=422
         )
     (src_type, src_id), (dst_type, dst_id) = _canonical(a, b)
 
@@ -93,7 +93,7 @@ async def delete_link(
     content). 404 if gone. RLS scopes to the household. Emits ``link.deleted``."""
     link = await session.get(ObjectLink, link_id)
     if link is None or link.deleted_at is not None:
-        raise ProblemException(slug="not_found", title="Verknüpfung nicht gefunden", status=404)
+        raise ProblemException(slug="not_found", title="Link not found", status=404)
     link.deleted_at = datetime.now(UTC)
     await emit(session, type="link.deleted", household_id=household_id, payload={})
     await session.flush()

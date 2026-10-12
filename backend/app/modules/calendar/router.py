@@ -45,7 +45,7 @@ AuthorPrincipal = Annotated[Principal, Depends(require_role(Role.admin, Role.mem
 
 def _require_household(principal: Principal) -> uuid.UUID:
     if principal.household_id is None:
-        raise ProblemException(slug="forbidden", title="Kein aktiver Haushalt", status=403)
+        raise ProblemException(slug="forbidden", title="No active household", status=403)
     return principal.household_id
 
 
@@ -457,7 +457,7 @@ async def calendar_feed(token: str) -> Response:
     async with maint_session() as msession:
         feed = await service.resolve_feed(msession, token=token)
     if feed is None:
-        raise ProblemException(slug="not_found", title="Feed nicht gefunden", status=404)
+        raise ProblemException(slug="not_found", title="Feed not found", status=404)
     async with scoped_session(household_id=feed.household_id, user_id=feed.member_id) as session:
         events = await service.list_for_feed(session, viewer_id=feed.member_id)
     body = render_ics(events, name="Custode")

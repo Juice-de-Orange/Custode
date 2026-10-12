@@ -8,7 +8,7 @@ describe("toProblem extra", () => {
     const err = toProblem(
       {
         type: "https://github.com/Juice-de-Orange/Custode/blob/main/docs/errors.md#caldav_write_failed",
-        title: "Externer Kalender nicht erreichbar",
+        title: "External calendar not reachable",
         status: 502,
         category: "auth_failed",
       },

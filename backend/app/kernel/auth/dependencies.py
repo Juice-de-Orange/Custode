@@ -30,7 +30,7 @@ async def get_current_principal(request: Request) -> Principal:
     token = request.cookies.get(access_cookie_name(get_settings()))
     claims = await load_access(token) if token else None
     if claims is None:
-        raise ProblemException(slug="unauthorized", title="Nicht angemeldet", status=401)
+        raise ProblemException(slug="unauthorized", title="Not signed in", status=401)
     principal = Principal(
         user_id=claims.user_id,
         family_id=claims.family_id,
@@ -82,7 +82,7 @@ def require_role(*roles: Role) -> Callable[[Principal], Awaitable[Principal]]:
 
     async def _dep(principal: CurrentPrincipal) -> Principal:
         if principal.role not in roles:
-            raise ProblemException(slug="forbidden", title="Keine Berechtigung", status=403)
+            raise ProblemException(slug="forbidden", title="Not allowed", status=403)
         return principal
 
     return _dep

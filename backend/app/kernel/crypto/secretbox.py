@@ -69,9 +69,10 @@ def require_secretbox() -> SecretBox:
     if box is None:
         raise ProblemException(
             slug="crypto_unconfigured",
-            title="Verschlüsselung nicht konfiguriert",
+            title="Encryption not configured",
             status=503,
-            detail="Diese Funktion braucht einen Server-Schlüssel (CUSTODE_CRYPTO_KEY). "
-            "Bitte den Betreiber kontaktieren.",
+            detail=(
+                "This feature needs a server key (CUSTODE_CRYPTO_KEY). Please contact the operator."
+            ),
         )
     return box

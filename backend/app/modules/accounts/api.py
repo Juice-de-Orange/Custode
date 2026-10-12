@@ -2,6 +2,7 @@
 into ``accounts`` (other modules import THIS, never internals)."""
 
 from app.modules.accounts.service import (
+    DigestRecipient,
     DigestTarget,
     HouseholdMembership,
     Member,
@@ -37,6 +38,7 @@ from app.modules.accounts.service import (
 )
 
 __all__ = [
+    "DigestRecipient",
     "DigestTarget",
     "HouseholdMembership",
     "Member",

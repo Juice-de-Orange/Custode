@@ -86,7 +86,7 @@ async def _require_recovery_reference(session: AsyncSession, *, data: EnvelopeUp
     if recovery is None or str(data.wrap_meta.get(RECOVERY_REF, "")) != str(recovery):
         raise ProblemException(
             slug="client_outdated",
-            title="Diese App-Version ist veraltet — bitte die App neu laden",
+            title="This app version is outdated — please reload the app",
             status=409,
             detail=(
                 "This version of the app is outdated. Reload the page (or close and reopen the "
@@ -97,7 +97,7 @@ async def _require_recovery_reference(session: AsyncSession, *, data: EnvelopeUp
 
 def _already_set_up() -> ProblemException:
     return ProblemException(
-        slug="vault_already_set_up", title="Der Tresor ist bereits eingerichtet", status=409
+        slug="vault_already_set_up", title="The vault is already set up", status=409
     )
 
 
@@ -199,7 +199,7 @@ async def get_item(session: AsyncSession, *, item_id: uuid.UUID) -> VaultItem:
     """One vault item of the active household (RLS hides other households -> 404)."""
     item = await session.get(VaultItem, item_id)
     if item is None or item.deleted_at is not None:
-        raise ProblemException(slug="not_found", title="Vault-Eintrag nicht gefunden", status=404)
+        raise ProblemException(slug="not_found", title="Vault entry not found", status=404)
     return item
 
 
@@ -216,7 +216,7 @@ async def update_item(
     item = await get_item(session, item_id=item_id)
     if item.version != expected_version:
         raise ProblemException(
-            slug="precondition_failed", title="Vault-Eintrag zwischenzeitlich geändert", status=412
+            slug="precondition_failed", title="Vault entry was changed in the meantime", status=412
         )
     if data.ciphertext is not None:
         item.ciphertext = data.ciphertext

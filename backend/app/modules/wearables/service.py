@@ -48,9 +48,9 @@ async def require_enabled(session: AsyncSession, *, household_id: uuid.UUID) -> 
     if not flags.get("wearables", False):
         raise ProblemException(
             slug="feature_disabled",
-            title="Wearables sind nicht aktiviert",
+            title="Wearables are not enabled",
             status=403,
-            detail="Diese Funktion ist für deinen Haushalt ausgeschaltet.",
+            detail="This feature is turned off for your household.",
         )
 
 
@@ -62,7 +62,7 @@ async def get_connection(
     no privileged read of health data (N-2)."""
     conn = await session.get(WearableConnection, connection_id)
     if conn is None or conn.member_id != member_id:
-        raise ProblemException(slug="not_found", title="Verbindung nicht gefunden", status=404)
+        raise ProblemException(slug="not_found", title="Connection not found", status=404)
     return conn
 
 
@@ -119,9 +119,9 @@ async def begin_connect(
     ):
         raise ProblemException(
             slug="connection_exists",
-            title="Verbindung besteht bereits",
+            title="Connection already exists",
             status=409,
-            detail="Trenne die bestehende Verbindung, bevor du sie neu einrichtest.",
+            detail="Disconnect the existing connection before setting it up again.",
         )
     require_secretbox()  # 503 crypto_unconfigured — fail before the redirect, see docstring
     state = await issue_state(
@@ -139,9 +139,9 @@ async def begin_connect(
     except WearableAuthError as exc:
         raise ProblemException(
             slug="wearables_disabled",
-            title="Wearable-Anbindung nicht verfügbar",
+            title="Wearable integration not available",
             status=503,
-            detail="Der Betreiber hat die Anbindung nicht konfiguriert.",
+            detail="The operator has not configured this integration.",
         ) from exc
 
 
