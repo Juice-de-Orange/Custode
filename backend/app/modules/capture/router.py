@@ -27,7 +27,7 @@ CapturePrincipal = Annotated[Principal, Depends(require_role(Role.admin, Role.me
 
 def _require_household(principal: Principal) -> uuid.UUID:
     if principal.household_id is None:
-        raise ProblemException(slug="forbidden", title="Kein aktiver Haushalt", status=403)
+        raise ProblemException(slug="forbidden", title="No active household", status=403)
     return principal.household_id
 
 

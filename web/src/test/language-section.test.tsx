@@ -29,7 +29,7 @@ test("choosing English stores the choice and asks for the reload", () => {
   const { onChanged } = renderSection();
   fireEvent.change(screen.getByLabelText("Sprache der Oberfläche"), { target: { value: "en" } });
   expect(getLocalePref()).toBe("en");
-  expect(onChanged).toHaveBeenCalledOnce();
+  expect(onChanged).toHaveBeenCalledExactlyOnceWith("en");
 });
 
 test("going back to the browser language forgets the stored choice", () => {
@@ -38,5 +38,6 @@ test("going back to the browser language forgets the stored choice", () => {
   expect(screen.getByLabelText("Sprache der Oberfläche")).toHaveValue("en");
   fireEvent.change(screen.getByLabelText("Sprache der Oberfläche"), { target: { value: "auto" } });
   expect(getLocalePref()).toBeNull();
-  expect(onChanged).toHaveBeenCalledOnce();
+  // The language now in effect (test/setup.ts: a German browser) — what the account stores.
+  expect(onChanged).toHaveBeenCalledExactlyOnceWith("de");
 });

@@ -87,7 +87,7 @@ async def get_letter(
     recipient and not the author. Returns ``(letter, read_by_me, read_count)``."""
     letter = await session.get(Letter, letter_id)
     if letter is None or letter.deleted_at is not None:
-        raise ProblemException(slug="not_found", title="Brief nicht gefunden", status=404)
+        raise ProblemException(slug="not_found", title="Letter not found", status=404)
     is_recipient = letter.from_id != viewer_id and (not letter.to_ids or viewer_id in letter.to_ids)
     if is_recipient:
         await session.execute(
@@ -114,7 +114,7 @@ async def convert_to_task(
     the task title; the letter stays (non-destructive). Returns ``(task_id, title)``."""
     letter = await session.get(Letter, letter_id)
     if letter is None or letter.deleted_at is not None:
-        raise ProblemException(slug="not_found", title="Brief nicht gefunden", status=404)
+        raise ProblemException(slug="not_found", title="Letter not found", status=404)
     task = await tasks_api.create_personal_task(
         session, household_id=household_id, title=letter.subject, assigned_to=author_id
     )

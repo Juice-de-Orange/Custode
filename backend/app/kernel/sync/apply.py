@@ -30,7 +30,7 @@ def _coerce(spec: EntitySpec, fields: dict[str, Any]) -> dict[str, Any]:
                 out[name] = uuid.UUID(out[name])
             except ValueError as exc:
                 raise ProblemException(
-                    slug="sync_invalid_field", title=f"Ungültiges UUID-Feld: {name}", status=422
+                    slug="sync_invalid_field", title=f"Invalid UUID field: {name}", status=422
                 ) from exc
     return out
 
@@ -110,12 +110,14 @@ async def apply_batch(
         entity_spec = spec.entities.get(op.entity)
         if entity_spec is None:
             raise ProblemException(
-                slug="sync_unknown_entity", title=f"Unbekannte Entität: {op.entity}", status=422
+                slug="sync_unknown_entity", title=f"Unknown entity: {op.entity}", status=422
             )
         unknown = set(op.fields) - entity_spec.fields - set(entity_spec.server_owner_fields)
         if unknown:
             raise ProblemException(
-                slug="sync_unknown_field", title=f"Unerlaubte Felder: {sorted(unknown)}", status=422
+                slug="sync_unknown_field",
+                title=f"Fields not allowed: {sorted(unknown)}",
+                status=422,
             )
 
         claimed = await _claim_op(session, household_id, op.client_op_id)
@@ -132,7 +134,7 @@ async def apply_batch(
                 if missing:
                     raise ProblemException(
                         slug="sync_missing_fields",
-                        title=f"Fehlende Pflichtfelder: {sorted(missing)}",
+                        title=f"Missing required fields: {sorted(missing)}",
                         status=422,
                     )
                 writes = _resolve_writes(entity_spec, fields, user_id)

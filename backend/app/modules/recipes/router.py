@@ -34,7 +34,7 @@ recipes_router = APIRouter(prefix="/v1/recipes", tags=["recipes"])
 
 def _require_household(principal: Principal) -> uuid.UUID:
     if principal.household_id is None:
-        raise ProblemException(slug="forbidden", title="Kein aktiver Haushalt", status=403)
+        raise ProblemException(slug="forbidden", title="No active household", status=403)
     return principal.household_id
 
 
@@ -197,11 +197,11 @@ async def set_recipe_photo(
     household_id = _require_household(principal)
     if not get_storage().enabled:
         raise ProblemException(
-            slug="storage_unavailable", title="Foto-Upload nicht verfügbar", status=503
+            slug="storage_unavailable", title="Photo upload not available", status=503
         )
     raw = await file.read(_MAX_UPLOAD_BYTES + 1)
     if len(raw) > _MAX_UPLOAD_BYTES:
-        raise ProblemException(slug="file_too_large", title="Bild zu groß", status=413)
+        raise ProblemException(slug="file_too_large", title="Image too large", status=413)
     recipe = await service.set_recipe_photo(
         session, household_id=household_id, recipe_id=recipe_id, image=normalize_image(raw)
     )
@@ -216,7 +216,7 @@ async def get_recipe_photo(
     recipe = await service.get_recipe(session, recipe_id=recipe_id)
     data = service.read_recipe_photo(recipe)
     if data is None:
-        raise ProblemException(slug="not_found", title="Kein Foto", status=404)
+        raise ProblemException(slug="not_found", title="No photo", status=404)
     return Response(
         content=data, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=300"}
     )

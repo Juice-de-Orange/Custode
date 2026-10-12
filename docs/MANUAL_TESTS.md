@@ -346,7 +346,9 @@ Je Modul der Happy-Path plus der eine Pfad, den Tests strukturell nicht treffen.
       Rückmeldungen" **und** in der Ops-Inbox.
 - [ ] **[Extern]** Mit gesetztem GitHub-Token: *Erwartung:* ein echtes Issue entsteht im Repo.
 - [ ] `/datenschutz`, `/impressum`, `/neuigkeiten` **ohne Login** erreichbar.
-      *Erwartung:* Inhalt rendert; der Entwurfs-Hinweis ist sichtbar (juristische Prüfung steht aus).
+      *Erwartung:* ohne Dateien in `legal/` steht „Der Betreiber dieser Instanz hat noch kein
+      Impressum hinterlegt" (bzw. keine Datenschutzerklärung); mit `legal/imprint.md` rendert
+      dessen Inhalt (docs/operations.md, „Legal pages").
 - [ ] **Datenexport (Art. 15/20).** `/profile` → „Meine Daten exportieren" → ZIP mit dem
       Bordmittel öffnen.
       *Erwartung:* `manifest.json` + `LIESMICH.txt` + `data/*.json`; eigene Notizen sind darin

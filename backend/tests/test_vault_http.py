@@ -88,18 +88,7 @@ async def _admin_household(client: AsyncClient) -> str:
 async def test_envelope_round_trip_and_idempotent(app: FastAPI) -> None:
     async with _client(app) as admin:
         await _admin_household(admin)
-        passphrase = await admin.put(
-            "/v1/vault/keys",
-            json={
-                "kind": "passphrase",
-                "wrapped_key": "d3JhcHBlZA==",
-                "wrap_meta": {"kdf": "argon2id", "salt": "c2FsdA=="},
-            },
-            headers=_csrf(admin),
-        )
-        assert passphrase.status_code == 200, passphrase.text
-        assert passphrase.json()["wrap_meta"]["kdf"] == "argon2id"
-        # A recovery envelope is household-wide (member_id NULL).
+        # A recovery envelope is household-wide (member_id NULL) and comes first.
         recovery = await admin.put(
             "/v1/vault/keys",
             json={"kind": "recovery", "wrapped_key": "cmVjb3Zlcg=="},
@@ -107,6 +96,22 @@ async def test_envelope_round_trip_and_idempotent(app: FastAPI) -> None:
         )
         assert recovery.status_code == 200, recovery.text
         assert recovery.json()["member_id"] is None
+        # The member's first passphrase envelope names the recovery envelope it was made from.
+        passphrase = await admin.put(
+            "/v1/vault/keys",
+            json={
+                "kind": "passphrase",
+                "wrapped_key": "d3JhcHBlZA==",
+                "wrap_meta": {
+                    "kdf": "argon2id",
+                    "salt": "c2FsdA==",
+                    "recovery_envelope_id": recovery.json()["id"],
+                },
+            },
+            headers=_csrf(admin),
+        )
+        assert passphrase.status_code == 200, passphrase.text
+        assert passphrase.json()["wrap_meta"]["kdf"] == "argon2id"
 
         keys = (await admin.get("/v1/vault/keys")).json()
         assert {k["kind"] for k in keys} == {"passphrase", "recovery"}
@@ -184,7 +189,11 @@ async def test_recovery_envelope_is_write_once(app: FastAPI) -> None:
         assert replay.json()["id"] == stored.json()["id"]
         joined = await member.put(
             "/v1/vault/keys",
-            json={"kind": "passphrase", "wrapped_key": "bWVpbnM="},
+            json={
+                "kind": "passphrase",
+                "wrapped_key": "bWVpbnM=",
+                "wrap_meta": {"recovery_envelope_id": stored.json()["id"]},
+            },
             headers=_csrf(member),
         )
         assert joined.status_code == 200, joined.text
@@ -271,3 +280,74 @@ async def test_vault_is_isolated_across_households(app: FastAPI) -> None:
         )
         # B (other household) sees none of A's secrets (RLS).
         assert (await b.get("/v1/vault/items")).json() == []
+
+
+async def test_stale_client_cannot_store_a_lone_key(app: FastAPI) -> None:
+    """FUNCTIONAL second check, open item: a client built before the join flow (cached by the
+    PWA's service worker) "sets up" with the old order — passphrase envelope first, recovery
+    second. The recovery PUT is refused (write-once), but the passphrase envelope around a brand
+    new key was already stored: that member's entries are unreadable for everybody else from then
+    on. A member's FIRST passphrase envelope must therefore name the live recovery envelope whose
+    key it wraps (``wrap_meta.recovery_envelope_id``); a client that does not know this gets
+    ``409 client_outdated`` — reload the app — and nothing is stored."""
+    async with _client(app) as admin, _client(app) as member:
+        await _admin_household(admin)
+
+        # Old order in a fresh household: the passphrase envelope comes first and is refused.
+        early = await admin.put(
+            "/v1/vault/keys",
+            json={"kind": "passphrase", "wrapped_key": "YWx0", "wrap_meta": {"salt": "YQ=="}},
+            headers=_csrf(admin),
+        )
+        assert early.status_code == 409, early.text
+        assert early.json()["type"].endswith("#client_outdated")
+        assert (await admin.get("/v1/vault/keys")).json() == []
+
+        # Current order: recovery first, then the passphrase envelope naming it.
+        rec = await admin.put(
+            "/v1/vault/keys",
+            json={"kind": "recovery", "wrapped_key": "cmVj", "wrap_meta": {"salt": "Yg=="}},
+            headers=_csrf(admin),
+        )
+        assert rec.status_code == 200, rec.text
+        rec_id = rec.json()["id"]
+        ok = await admin.put(
+            "/v1/vault/keys",
+            json={
+                "kind": "passphrase",
+                "wrapped_key": "a2V5",
+                "wrap_meta": {"salt": "Yw==", "recovery_envelope_id": rec_id},
+            },
+            headers=_csrf(admin),
+        )
+        assert ok.status_code == 200, ok.text
+
+        # A second member on a stale client: passphrase envelope around a new key, no reference.
+        await _join_as_member(admin, member)
+        lone = await member.put(
+            "/v1/vault/keys",
+            json={"kind": "passphrase", "wrapped_key": "bG9uZQ==", "wrap_meta": {"salt": "ZA=="}},
+            headers=_csrf(member),
+        )
+        assert lone.status_code == 409, lone.text
+        assert lone.json()["type"].endswith("#client_outdated")
+        # A reference to something that is not the live recovery envelope is refused the same way.
+        bogus = await member.put(
+            "/v1/vault/keys",
+            json={
+                "kind": "passphrase",
+                "wrapped_key": "bG9uZQ==",
+                "wrap_meta": {"salt": "ZA==", "recovery_envelope_id": str(uuid.uuid4())},
+            },
+            headers=_csrf(member),
+        )
+        assert bogus.status_code == 409, bogus.text
+        assert [k["kind"] for k in (await member.get("/v1/vault/keys")).json()] == ["recovery"]
+
+        # Changing an EXISTING passphrase needs no reference — the key is already the household's.
+        changed = await admin.put(
+            "/v1/vault/keys",
+            json={"kind": "passphrase", "wrapped_key": "bmV1", "wrap_meta": {"salt": "ZQ=="}},
+            headers=_csrf(admin),
+        )
+        assert changed.status_code == 200, changed.text

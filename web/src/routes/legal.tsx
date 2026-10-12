@@ -1,59 +1,67 @@
-import { Trans } from "@lingui/react";
+import { Trans, useLingui } from "@lingui/react";
+import { useQuery } from "@tanstack/react-query";
 
-import { BRAND_NAME } from "../lib/brand";
+import { ErrorState, LoadingState } from "../components/states";
+import { Markdown } from "../lib/markdown";
 
-// Legal text pages (Roadmap Phase 8: „DSGVO-Texte v1"). Public — readable without a session, since a
-// privacy policy and imprint must be reachable by anyone. Content is a structured v1 draft (clearly
-// marked); the binding wording is filled in during the legal review before the public launch (Phase 11).
-function LegalShell({ titleId, children }: { titleId: string; children: React.ReactNode }) {
+// Legal text pages (imprint, privacy policy). Public — readable without a session, since both
+// must be reachable by anyone. The texts belong to whoever runs the instance, so they are not in
+// the code: the operator drops Markdown files into the `legal/` folder that the web container
+// serves under /legal/ (docs/operations.md, "Legal pages"). A language-specific file
+// (`imprint.en.md`) wins over the generic one (`imprint.md`). Without a file the page says
+// plainly that the operator has not provided one — it never shows a placeholder text that
+// looks like a real imprint.
+
+export type LegalDoc = "imprint" | "privacy";
+
+/** Fetch `/legal/<doc>.<locale>.md`, then `/legal/<doc>.md`. `null` = the operator has not
+ *  provided the document. A 404 counts as "not provided", and so does an HTML answer: an SPA
+ *  fallback (the Vite dev server, a proxy without the /legal/ block) serves index.html for
+ *  unknown paths with 200. Network failures throw, so they show as an error, not as "missing". */
+export async function fetchLegalDoc(doc: LegalDoc, locale: string): Promise<string | null> {
+  for (const name of [`${doc}.${locale}.md`, `${doc}.md`]) {
+    const res = await fetch(`/legal/${name}`, { headers: { Accept: "text/markdown, text/plain" } });
+    const type = res.headers.get("content-type") ?? "";
+    if (res.ok && !type.includes("text/html")) {
+      const text = await res.text();
+      if (text.trim()) return text;
+    }
+  }
+  return null;
+}
+
+function LegalPage({ doc, titleId, missingId }: { doc: LegalDoc; titleId: string; missingId: string }) {
+  const { i18n } = useLingui();
+  const locale = i18n.locale;
+  const text = useQuery({
+    queryKey: ["legal", doc, locale],
+    queryFn: () => fetchLegalDoc(doc, locale),
+    staleTime: 5 * 60_000,
+  });
   return (
     <article className="prose-sm mx-auto max-w-prose space-y-4">
       <h1 className="font-display text-2xl">
         <Trans id={titleId} />
       </h1>
-      <p className="rounded-md border border-bernstein/40 bg-bernstein/5 px-3 py-2 text-sm text-stein-text">
-        <Trans id="legal.draftNotice" />
-      </p>
-      {children}
+      {text.isLoading ? (
+        <LoadingState />
+      ) : text.isError ? (
+        <ErrorState />
+      ) : text.data ? (
+        <Markdown source={text.data} />
+      ) : (
+        <p className="rounded-md border border-bernstein/40 bg-bernstein/5 px-3 py-2 text-sm text-stein-text">
+          <Trans id={missingId} />
+        </p>
+      )}
     </article>
   );
 }
 
-function Section({ headingId, bodyId }: { headingId: string; bodyId: string }) {
-  return (
-    <section className="space-y-1">
-      <h2 className="text-base font-semibold text-tinte dark:text-kalk">
-        <Trans id={headingId} />
-      </h2>
-      <p className="text-sm text-stein-text">
-        <Trans id={bodyId} />
-      </p>
-    </section>
-  );
-}
-
 export function PrivacyPage() {
-  return (
-    <LegalShell titleId="legal.privacy.title">
-      <Section headingId="legal.privacy.controller.h" bodyId="legal.privacy.controller.b" />
-      <Section headingId="legal.privacy.data.h" bodyId="legal.privacy.data.b" />
-      <Section headingId="legal.privacy.purposes.h" bodyId="legal.privacy.purposes.b" />
-      <Section headingId="legal.privacy.legalBasis.h" bodyId="legal.privacy.legalBasis.b" />
-      <Section headingId="legal.privacy.retention.h" bodyId="legal.privacy.retention.b" />
-      <Section headingId="legal.privacy.rights.h" bodyId="legal.privacy.rights.b" />
-      <Section headingId="legal.privacy.contact.h" bodyId="legal.privacy.contact.b" />
-    </LegalShell>
-  );
+  return <LegalPage doc="privacy" titleId="legal.privacy.title" missingId="legal.privacy.missing" />;
 }
 
 export function ImprintPage() {
-  return (
-    <LegalShell titleId="legal.imprint.title">
-      <Section headingId="legal.imprint.provider.h" bodyId="legal.imprint.provider.b" />
-      <Section headingId="legal.imprint.contact.h" bodyId="legal.imprint.contact.b" />
-      <p className="text-sm text-stein-text">
-        <Trans id="legal.imprint.brandNote" values={{ brand: BRAND_NAME }} />
-      </p>
-    </LegalShell>
-  );
+  return <LegalPage doc="imprint" titleId="legal.imprint.title" missingId="legal.imprint.missing" />;
 }

@@ -54,13 +54,13 @@ async def current_operator(request: Request, session: OpsSession) -> Operator:
     (fail-closed)."""
     token = bearer_token(request)
     if token is None:
-        raise ProblemException(slug="unauthorized", title="Nicht angemeldet", status=401)
+        raise ProblemException(slug="unauthorized", title="Not signed in", status=401)
     operator_id = await load_ops_session(token)
     if operator_id is None:
-        raise ProblemException(slug="unauthorized", title="Sitzung ungültig", status=401)
+        raise ProblemException(slug="unauthorized", title="Invalid session", status=401)
     operator = await session.get(Operator, operator_id)
     if operator is None or not operator.is_active:
-        raise ProblemException(slug="unauthorized", title="Operator inaktiv", status=401)
+        raise ProblemException(slug="unauthorized", title="Operator inactive", status=401)
     return operator
 
 

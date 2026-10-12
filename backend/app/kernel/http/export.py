@@ -82,9 +82,9 @@ async def _build(
         get_logger("export").warning("export_too_large", scope=scope.value, rows=exc.rows)
         raise ProblemException(
             slug="export_too_large",
-            title="Der Export ist zu groß für den direkten Download",
+            title="The export is too large for a direct download",
             status=413,
-            detail="Bitte den Betreiber kontaktieren — der Export wird dann bereitgestellt.",
+            detail="Please contact the operator, who can provide the export.",
         ) from exc
 
     storage = get_storage()

@@ -10,6 +10,7 @@ from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Request, Response, status
+from pydantic import AwareDatetime
 
 from app.kernel.auth.context import Principal, Role
 from app.kernel.auth.dependencies import CurrentPrincipal, ScopedSession, require_role
@@ -45,7 +46,7 @@ AuthorPrincipal = Annotated[Principal, Depends(require_role(Role.admin, Role.mem
 
 def _require_household(principal: Principal) -> uuid.UUID:
     if principal.household_id is None:
-        raise ProblemException(slug="forbidden", title="Kein aktiver Haushalt", status=403)
+        raise ProblemException(slug="forbidden", title="No active household", status=403)
     return principal.household_id
 
 
@@ -84,11 +85,12 @@ def _event_response(
 async def list_events(
     principal: CurrentPrincipal,
     session: ScopedSession,
-    frm: Annotated[datetime | None, Query(alias="from")] = None,
-    to: datetime | None = None,
+    frm: Annotated[AwareDatetime | None, Query(alias="from")] = None,
+    to: AwareDatetime | None = None,
 ) -> list[EventResponse]:
     """Visible occurrences (household-layer + own personal), optionally within from/to. Recurring
-    series are expanded into concrete occurrences."""
+    series are expanded into concrete occurrences. from/to must carry an offset (422 otherwise): a
+    naive bound cannot be compared with the stored UTC instants."""
     _require_household(principal)
     occurrences = await service.list_events(session, viewer_id=principal.user_id, frm=frm, to=to)
     return [
@@ -457,7 +459,7 @@ async def calendar_feed(token: str) -> Response:
     async with maint_session() as msession:
         feed = await service.resolve_feed(msession, token=token)
     if feed is None:
-        raise ProblemException(slug="not_found", title="Feed nicht gefunden", status=404)
+        raise ProblemException(slug="not_found", title="Feed not found", status=404)
     async with scoped_session(household_id=feed.household_id, user_id=feed.member_id) as session:
         events = await service.list_for_feed(session, viewer_id=feed.member_id)
     body = render_ics(events, name="Custode")

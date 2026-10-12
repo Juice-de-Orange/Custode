@@ -24,7 +24,7 @@ function compileCatalog(msgs: Record<string, string>): Record<string, Compiled> 
 }
 
 /** Load one surface's DE+EN catalogs into the shared Lingui instance and activate the language
- *  for this browser (stored choice, else browser language, else German — `lib/locale`).
+ *  for this browser (stored choice, else browser language, else English — `lib/locale`).
  *  Called exactly once per entry point, at module load. */
 export function activateCatalogs(
   de: Record<string, string>,
@@ -33,7 +33,7 @@ export function activateCatalogs(
   i18n.load({ de: compileCatalog(de), en: compileCatalog(en) });
   const locale = detectLocale();
   i18n.activate(locale);
-  // index.html ships lang="de"; screen readers and hyphenation follow this attribute.
+  // index.html ships lang="en"; screen readers and hyphenation follow this attribute.
   if (typeof document !== "undefined") document.documentElement.lang = locale;
   return i18n;
 }

@@ -1,0 +1,37 @@
+# Custode — the local trial (README, "Quick start"). Layered over docker-compose.prod.yml; ./setup
+# puts both into COMPOSE_FILE in .env, so a plain `docker compose up -d` uses them.
+#
+# What it changes: the web app on http://localhost:8080 (127.0.0.1 only, CUSTODE_HTTP_PORT moves
+# it), the api's own health-check port not published, and a `seed-demo` job for sample data.
+# For a server behind your proxy, drop the COMPOSE_FILE line from .env (docs/operations.md).
+
+services:
+  api:
+    ports: !reset []
+
+  web:
+    ports:
+      - "127.0.0.1:${CUSTODE_HTTP_PORT:-8080}:80"
+
+  # Sample household: `docker compose run --rm seed-demo`. It creates accounts with a PUBLISHED
+  # password (admin@custode.local / custode-admin-demo) — for a local trial only, never on an
+  # instance others can reach. CUSTODE_ENV=dev is what the seed script requires for exactly that
+  # reason; it applies to this one-off container only.
+  seed-demo:
+    profiles: ["demo"]
+    image: ghcr.io/juice-de-orange/custode-api:${CUSTODE_VERSION:-latest}
+    build:
+      context: ./backend
+    restart: "no"
+    command: ["python", "-m", "app.scripts.seed_demo", "--lang", "en"]
+    environment:
+      CUSTODE_ENV: dev
+      CUSTODE_LOG_JSON: "true"
+      CUSTODE_DATABASE_URL: postgresql+asyncpg://custode_app:${APP_DB_PASSWORD}@postgres:5432/custode
+      CUSTODE_DATABASE_URL_MAINT: postgresql+asyncpg://custode_maint:${MAINT_DB_PASSWORD}@postgres:5432/custode
+      CUSTODE_REDIS_URL: redis://redis:6379/0
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy

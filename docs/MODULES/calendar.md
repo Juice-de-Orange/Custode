@@ -143,11 +143,13 @@ Tx-Rollback bei jedem Fehlschlag; der Request-Pfad bekommt den Port via `app.sta
 ## Schnittstellen
 - **HTTP `/v1/calendar/import` (member/admin, CSRF):** `POST {content, layer}` → `IcsImportResult`.
 - **HTTP `/v1/calendar/events` (member/admin, Kinder ✗ in S1):** `GET ?from=&to=` (sichtbare Events,
-  optional Zeitfenster — Overlap `starts_at<=to AND ends_at>=from`) · `POST` · `GET {id}` (+ETag) ·
+  optional Zeitfenster — Overlap `starts_at<=to AND ends_at>=from`; `from`/`to` nur mit Offset,
+  sonst 422 `validation`) · `POST` · `GET {id}` (+ETag) ·
   `PATCH {id}` (If-Match, owner-only) · `DELETE {id}` (Soft-Delete, owner-only) ·
   `POST {id}/cancel-occurrence` · `POST {id}/restore-occurrence` (absagen/zurücknehmen) ·
   `POST {id}/move-occurrence` · `POST {id}/reset-occurrence` (verschieben/zurücksetzen) — alle
-  owner-only, **kein** If-Match (Mengen-Semantik, ADR-0043/0048). CSRF auf Writes.
+  owner-only, **kein** If-Match (Mengen-Semantik, ADR-0043/0048). CSRF auf Writes. Alle Zeitpunkte
+  in Requests (Query und Body) brauchen einen Offset, sonst 422 `validation` (`timezone_aware`).
 - **HTTP `/v1/calendar/feed` (member/admin, CSRF):** `POST` (erzeugt/rotiert die Abo-URL) · `DELETE`
   (widerruft). **`GET /v1/calendar/feed/<token>.ics` (unauth, read-only)** — der Abo-Endpoint.
 - **Cross-Modul:** importiert **nur** `kernel/*`. `calendar.api` exportiert `list_absences(frm, to)`

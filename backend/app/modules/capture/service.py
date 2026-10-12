@@ -37,7 +37,7 @@ def _proposal(capture: Capture) -> ParsedProposal:
 async def get_capture(session: AsyncSession, *, capture_id: uuid.UUID) -> Capture:
     capture = await session.get(Capture, capture_id)
     if capture is None or capture.deleted_at is not None:
-        raise ProblemException(slug="not_found", title="Zuruf nicht gefunden", status=404)
+        raise ProblemException(slug="not_found", title="Capture entry not found", status=404)
     return capture
 
 
@@ -90,9 +90,9 @@ async def confirm_capture(
     404 if it is not the caller's own; 409 if it is not ``proposed`` or has no actionable target."""
     capture = await get_capture(session, capture_id=capture_id)
     if capture.member_id != member_id:
-        raise ProblemException(slug="not_found", title="Zuruf nicht gefunden", status=404)
+        raise ProblemException(slug="not_found", title="Capture entry not found", status=404)
     if capture.status != "proposed":
-        raise ProblemException(slug="invalid_state", title="Zuruf nicht offen", status=409)
+        raise ProblemException(slug="invalid_state", title="Capture entry is not open", status=409)
     proposal = _proposal(capture)
 
     if proposal.target == "shopping":
@@ -139,7 +139,7 @@ async def confirm_capture(
     else:
         # note (no notes module before Phase 7) or „Unsortiert" — nothing to create yet.
         raise ProblemException(
-            slug="no_target", title="Kein Ziel zum Anlegen (bitte zuordnen)", status=409
+            slug="no_target", title="No target to create (please assign one)", status=409
         )
 
     capture.status = "confirmed"
@@ -154,9 +154,9 @@ async def dismiss_capture(
     """Discard a proposed capture (``dismissed``). 404 if not the caller's own."""
     capture = await get_capture(session, capture_id=capture_id)
     if capture.member_id != member_id:
-        raise ProblemException(slug="not_found", title="Zuruf nicht gefunden", status=404)
+        raise ProblemException(slug="not_found", title="Capture entry not found", status=404)
     if capture.status != "proposed":
-        raise ProblemException(slug="invalid_state", title="Zuruf nicht offen", status=409)
+        raise ProblemException(slug="invalid_state", title="Capture entry is not open", status=409)
     capture.status = "dismissed"
     await emit(session, type="capture.processed", household_id=capture.household_id, payload={})
     await session.flush()

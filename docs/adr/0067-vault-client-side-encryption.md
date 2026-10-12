@@ -111,6 +111,22 @@ um einen Schlüssel gespeichert, das sonst niemand hat. Fremde Daten gehen dabei
 Mitglied heilt den Zustand über „Passphrase vergessen?" mit dem Wiederherstellungs-Code des
 Haushalts. Der Server kann den Fall nicht erkennen (opake Umschläge).
 
+## Nachtrag 2026-10-12 — der erste Passphrase-Umschlag nennt seinen Recovery-Umschlag
+
+Die „Restlücke" oben ist geschlossen, ohne neue Krypto. Ein aktueller Client legt den **ersten**
+Passphrase-Umschlag eines Mitglieds nur aus einem `K_h` an, das er gerade in den Recovery-Umschlag
+geschrieben (Einrichten) oder aus ihm entpackt hat (Beitritt, „Passphrase vergessen") — und sagt
+das: `wrap_meta.recovery_envelope_id` = die id des lebenden Recovery-Umschlags. Fehlt die Angabe
+oder nennt sie etwas anderes, antwortet der Server **409 `client_outdated`** und speichert nichts.
+Ein veralteter Client (alte Reihenfolge, z. B. noch vom Service Worker einer installierten PWA
+ausgeliefert) kann so keinen Schlüssel mehr hinterlegen, den sonst niemand hat; die aktuelle
+Oberfläche zeigt bei diesem Code „App neu laden" statt eines allgemeinen Fehlers. Das **Ersetzen**
+eines bestehenden Passphrase-Umschlags (Passphrase-Wechsel) braucht die Angabe nicht.
+Die Angabe ist kein Beweis — der Server sieht weiter nicht, welches `K_h` ein Umschlag trägt —,
+sondern ein Protokoll-Merkmal, das nur Clients mit der richtigen Reihenfolge senden. Folge: Clients,
+die zwischen dem Nachtrag vom 2026-10-03 und diesem gebaut wurden, kennen das Merkmal ebenfalls
+nicht; auch sie bekommen beim Beitritt 409, bis die App neu geladen ist.
+
 ## Alternativen
 - **Serverseitige Verschlüsselung (KMS):** Server könnte entschlüsseln → verletzt „Server sieht nur
   Ciphertext". Verworfen.

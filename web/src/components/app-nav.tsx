@@ -58,7 +58,7 @@ export function AppSidebar({ onSearch }: { onSearch: () => void }) {
           <Trans id={IS_MAC ? "command.shortcut.mac" : "command.shortcut.other"} />
         </kbd>
       </button>
-      <nav aria-label="Hauptnavigation" className="flex flex-col gap-5">
+      <nav aria-label={i18n._("a11y.mainNav")} className="flex flex-col gap-5">
         {NAV_GROUPS.map((group) => (
           <div key={group.labelKey} className="flex flex-col gap-0.5">
             <h2 className="px-3 pb-1 text-xs font-medium uppercase tracking-wide text-stein-text">
@@ -108,7 +108,7 @@ export function AppBottomBar() {
                 <X className="size-5" aria-hidden="true" />
               </button>
             </div>
-            <nav aria-label="Weitere Navigation" className="flex flex-col gap-4">
+            <nav aria-label={i18n._("a11y.moreNav")} className="flex flex-col gap-4">
               {NAV_GROUPS.map((group) => (
                 <div key={group.labelKey} className="flex flex-col gap-0.5">
                   <h3 className="px-3 pb-1 text-xs font-medium uppercase tracking-wide text-stein-text">
@@ -124,7 +124,7 @@ export function AppBottomBar() {
         </>
       ) : null}
       <nav
-        aria-label="Hauptnavigation"
+        aria-label={i18n._("a11y.mainNav")}
         className="fixed inset-x-0 bottom-0 z-50 flex h-bottom-bar border-t border-stein/15 bg-papier/95 pb-safe-b pl-safe-l pr-safe-r backdrop-blur dark:bg-nacht-2/95 md:hidden"
       >
         {MOBILE_PRIMARY.map((item) => {

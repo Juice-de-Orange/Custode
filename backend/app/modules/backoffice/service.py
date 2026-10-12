@@ -170,16 +170,14 @@ async def passkey_register_finish(
     challenge = await webauthn.pop_challenge(f"ops_reg:{operator_id}")
     if challenge is None:
         raise ProblemException(
-            slug="passkey_challenge_expired", title="Challenge abgelaufen", status=400
+            slug="passkey_challenge_expired", title="Challenge expired", status=400
         )
     try:
         reg = webauthn.verify_registration(
             credential=credential, challenge=challenge, rp_id=rp_id, origin=origin
         )
     except Exception as exc:  # any verification failure -> fail closed
-        raise ProblemException(
-            slug="passkey_invalid", title="Passkey ungültig", status=400
-        ) from exc
+        raise ProblemException(slug="passkey_invalid", title="Invalid passkey", status=400) from exc
     session.add(
         OperatorPasskey(
             operator_id=operator_id,
@@ -194,7 +192,7 @@ async def passkey_register_finish(
         await session.flush()
     except IntegrityError as exc:
         raise ProblemException(
-            slug="passkey_exists", title="Passkey bereits registriert", status=409
+            slug="passkey_exists", title="Passkey already registered", status=409
         ) from exc
 
 
@@ -215,28 +213,26 @@ async def passkey_auth_finish(
     challenge = await webauthn.pop_challenge(f"ops_auth:{flow_id}")
     if challenge is None:
         raise ProblemException(
-            slug="passkey_challenge_expired", title="Challenge abgelaufen", status=400
+            slug="passkey_challenge_expired", title="Challenge expired", status=400
         )
     raw_id = credential.get("id") or credential.get("rawId")
     if not isinstance(raw_id, str):
-        raise ProblemException(slug="passkey_invalid", title="Passkey ungültig", status=400)
+        raise ProblemException(slug="passkey_invalid", title="Invalid passkey", status=400)
     # A malformed (non-base64url) id must fail closed as a 400, not leak an unhandled 500.
     try:
         cred_id = webauthn.canonical_id(raw_id)
     except ValueError as exc:  # binascii.Error is a ValueError subclass
-        raise ProblemException(
-            slug="passkey_invalid", title="Passkey ungültig", status=400
-        ) from exc
+        raise ProblemException(slug="passkey_invalid", title="Invalid passkey", status=400) from exc
     pk = await session.scalar(
         select(OperatorPasskey).where(OperatorPasskey.credential_id == cred_id)
     )
     # Uniform 401 title across unknown-credential / inactive-operator / bad-signature so the failure
     # reason is not an enumeration oracle over the (tiny, privileged) operator set.
     if pk is None:
-        raise ProblemException(slug="passkey_invalid", title="Passkey ungültig", status=401)
+        raise ProblemException(slug="passkey_invalid", title="Invalid passkey", status=401)
     operator = await session.get(Operator, pk.operator_id)
     if operator is None or not operator.is_active:
-        raise ProblemException(slug="passkey_invalid", title="Passkey ungültig", status=401)
+        raise ProblemException(slug="passkey_invalid", title="Invalid passkey", status=401)
     try:
         new_count = webauthn.verify_authentication(
             credential=credential,
@@ -247,9 +243,7 @@ async def passkey_auth_finish(
             sign_count=pk.sign_count,
         )
     except Exception as exc:  # signature / sign-count / origin mismatch -> fail closed
-        raise ProblemException(
-            slug="passkey_invalid", title="Passkey ungültig", status=401
-        ) from exc
+        raise ProblemException(slug="passkey_invalid", title="Invalid passkey", status=401) from exc
     pk.sign_count = new_count
     pk.last_used_at = datetime.now(UTC)
     await session.flush()
