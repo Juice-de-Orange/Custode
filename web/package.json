@@ -43,7 +43,7 @@
     "@lhci/cli": "^0.15.1",
     "@playwright/test": "~1.63.0",
     "@tailwindcss/vite": "^4.3.3",
-    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
     "@types/libsodium-wrappers-sumo": "^0.8.2",
     "@types/react": "~19.3.0",
