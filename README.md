@@ -31,11 +31,12 @@ Want to look around first? `docker compose run --rm seed-demo` adds an invented,
 household (sign in as `admin@custode.local` / `custode-admin-demo` — a published password, so only
 on a trial instance).
 
-From `git clone` to the sign-in page took **TIME_TBD** on a clean Docker host (no cached images)
-with a TIME_LINE line: the stack is built from source until the first release has published its
-images to GHCR — then `up` pulls them instead. Needs Docker with Compose v2.24 or newer and about
-TIME_DISK of disk. The quick start listens on 127.0.0.1 only; to use Custode from other devices,
-put it behind HTTPS ([Self-hosting](#self-hosting), [`docs/operations.md`](docs/operations.md)).
+From `git clone` to the sign-in page took **about 4 minutes** (253 s) on a clean Docker host — no
+cached images, a ~90 Mbit/s line — measured on 2026-10-12 while building from source: there is
+no release with published images yet. Once there is, `up` pulls them from GHCR instead of
+building. Needs Docker with Compose v2.24 or newer (tested with 2.33 and 5.6) and about 2 GB of
+disk. The quick start listens on 127.0.0.1 only; to use Custode from other devices, put it behind
+HTTPS ([Self-hosting](#self-hosting), [`docs/operations.md`](docs/operations.md)).
 
 > **Status: beta, one maintainer, no release yet.** All modules of roadmap phases 0–9 are built
 > (CalDAV two-way sync, Oura, GDPR export and erasure included); hardening is in progress; the
