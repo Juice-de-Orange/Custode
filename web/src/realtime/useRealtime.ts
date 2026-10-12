@@ -3,6 +3,7 @@ import { useEffect } from "react";
 
 import { renewSession } from "../auth/client";
 import { useSession } from "../auth/session";
+import { useDemo } from "../lib/demo";
 import { queryKeysForEntity, sideEffectForEntity } from "./invalidation-map";
 import { openInvalidationStream } from "./stream";
 
@@ -13,8 +14,10 @@ export function useRealtime(): void {
   const qc = useQueryClient();
   const { data: session } = useSession();
   const signedIn = Boolean(session);
+  // A public demo refuses long-lived connections (docs/demo.md); refetch-on-focus carries it.
+  const demo = useDemo() !== null;
   useEffect(() => {
-    if (!signedIn) return;
+    if (!signedIn || demo) return;
     const stream = openInvalidationStream(
       (hint) => {
         const invalidate = () => {
@@ -32,5 +35,5 @@ export function useRealtime(): void {
       { renew: renewSession },
     );
     return () => stream.close();
-  }, [signedIn, qc]);
+  }, [signedIn, demo, qc]);
 }

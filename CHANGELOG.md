@@ -8,6 +8,14 @@ history (June–September 2026, German) is not part of the public repository.
 
 ### Added
 
+- Public demo mode (`CUSTODE_DEMO_MODE=on`, default off): one shared demo household whose login
+  the sign-in page fills in, a banner on every page (English and German), sign-up, mail, invites,
+  uploads, imports, ICS/CalDAV, vault, integrations, the live stream and the operator console
+  refused server-side with `demo_disabled`, every external adapter off, a per-visitor rate limit,
+  a body cap and `noindex`. `docker-compose.demo.yml` runs it isolated (internal network without
+  internet for the app, one port on `127.0.0.1`, limits per service, rotated logs), and
+  `python -m app.scripts.demo_reset` puts the household back every hour. The demo seed has an
+  English variant (`python -m app.scripts.seed_demo --lang en`). See `docs/demo.md`.
 - Initial public release under AGPL-3.0: all modules of roadmap phases 0–9 (accounts and
   households, recipes and nutrition, meal planner, shopping list, calendars with CalDAV sync,
   tasks with points ledger and marketplace, vault, messaging, guides, notes, comments, wearables,
