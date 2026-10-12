@@ -225,18 +225,33 @@ services:
   web:
     build:
       context: ./web
+      args:
+        # Footer "Source code" link (AGPL §13). Set it when you run a modified version.
+        VITE_SOURCE_URL: ${CUSTODE_SOURCE_URL:-}
     restart: unless-stopped
     # Caddy serves the built SPA and proxies /v1, /healthz, /readyz, /metrics to the api
     # — one origin (cookies are SameSite=Lax). The image bakes `dist`; we override its
     # default Caddyfile with the reverse-proxy config. No host port: the operator's
     # reverse proxy/tunnel reaches `web` on :80 in the Compose network (ADR-0020/0024);
     # TLS is terminated there.
+    # A stable name for the operator's proxy/tunnel on the stack network: `custode-web:80`
+    # resolves to this container whatever the Compose project is called — unlike the short
+    # service name `web`, which a proxy attached to several stacks' networks cannot tell apart,
+    # and unlike the container name `<project>-web-1` (docs/operations.md, "Reverse proxy").
+    networks:
+      default:
+        aliases:
+          - custode-web
     environment:
       # Host name of the operator console's site block in the Caddyfile (plain HTTP, like the
       # member block). The operator's proxy/tunnel must forward this Host header unchanged.
       OPS_HOST: ${OPS_HOST:-ops.localhost}
     volumes:
       - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # Imprint and privacy policy of this instance (docs/operations.md, "Legal pages"):
+      # imprint.md / privacy.md, optionally per language (imprint.en.md). Missing files → the
+      # app says the operator has not provided them.
+      - ${CUSTODE_LEGAL_DIR:-./legal}:/srv/legal:ro
     depends_on:
       - api
     deploy:

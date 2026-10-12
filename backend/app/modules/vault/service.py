@@ -23,7 +23,8 @@ async def upsert_envelope(
     session: AsyncSession, *, household_id: uuid.UUID, member_id: uuid.UUID, data: EnvelopeUpsert
 ) -> VaultKeyEnvelope:
     """Store a wrapped household-key envelope. A ``passphrase`` envelope binds to the requesting
-    member and may be replaced (passphrase change; idempotent per member/key_version). A
+    member and may be replaced (passphrase change; idempotent per member/key_version); the FIRST one
+    must reference the live recovery envelope (``_require_recovery_reference``). A
     ``recovery`` envelope is household-wide (``member_id`` NULL) and **write-once**: it is the one
     copy of the household key every member can fall back on, so a second "setup" must never
     replace it (409 ``vault_already_set_up``). Emits ``vault.key_changed``."""
@@ -42,6 +43,7 @@ async def upsert_envelope(
         existing.wrap_meta = data.wrap_meta
         envelope = existing
     else:
+        await _require_recovery_reference(session, data=data)
         envelope = VaultKeyEnvelope(
             household_id=household_id,
             member_id=member_id,
@@ -54,6 +56,43 @@ async def upsert_envelope(
     await emit(session, type="vault.key_changed", household_id=household_id, payload={})
     await session.flush()
     return envelope
+
+
+# The wrap_meta member a member's FIRST passphrase envelope uses to name the recovery envelope
+# whose household key it wraps. Not secret (an envelope id); the server checks it, never the key.
+RECOVERY_REF = "recovery_envelope_id"
+
+
+async def _require_recovery_reference(session: AsyncSession, *, data: EnvelopeUpsert) -> None:
+    """A member's first passphrase envelope must name the household's live recovery envelope.
+
+    Clients built before the join flow (still cached by an installed PWA's service worker) set up
+    in the old order: passphrase envelope first — around a brand-new key — then the recovery
+    envelope, which the write-once rule refuses. The passphrase envelope was stored by then, and
+    that member's entries were unreadable for everybody else from that moment on (a "lone key").
+    The server cannot see which key an envelope wraps, but current clients only ever create a
+    member's first passphrase envelope from the key they unwrapped from (or just wrote into) the
+    recovery envelope, and say so via ``wrap_meta.recovery_envelope_id``. A request without it, or
+    naming anything but the live recovery envelope, comes from an outdated client: 409
+    ``client_outdated`` and nothing stored. Replacing an existing passphrase envelope (passphrase
+    change) needs no reference — that key is already the member's household key."""
+    recovery = await session.scalar(
+        select(VaultKeyEnvelope.id).where(
+            VaultKeyEnvelope.kind == "recovery",
+            VaultKeyEnvelope.key_version == data.key_version,
+            VaultKeyEnvelope.deleted_at.is_(None),
+        )
+    )
+    if recovery is None or str(data.wrap_meta.get(RECOVERY_REF, "")) != str(recovery):
+        raise ProblemException(
+            slug="client_outdated",
+            title="Diese App-Version ist veraltet — bitte die App neu laden",
+            status=409,
+            detail=(
+                "This version of the app is outdated. Reload the page (or close and reopen the "
+                "installed app) and try again."
+            ),
+        )
 
 
 def _already_set_up() -> ProblemException:

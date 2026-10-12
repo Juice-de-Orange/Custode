@@ -1,6 +1,7 @@
 # Production reverse proxy: static web + API under one origin (ARCHITECTURE: "web
 # Static via Caddy"). TLS is terminated upstream by the operator's TLS-terminating proxy
-# or tunnel (→ http://web:80 in the Compose network), so Caddy serves plain HTTP on :80.
+# or tunnel (→ http://custode-web:80 in the Compose network, docs/operations.md), so Caddy
+# serves plain HTTP on :80.
 # Dev does NOT use this — the web runs via `npm run dev` and proxies /v1 to the API.
 
 # PWA cache policy (ADR-0078), shared by both site blocks: hashed /assets/* never change →
@@ -19,6 +20,24 @@
     @api path /v1/* /healthz /readyz /metrics
     handle @api {
         reverse_proxy api:8000
+    }
+
+    # The operator's legal texts (docs/operations.md, "Legal pages"), mounted from the host's
+    # legal/ folder. Only imprint/privacy files are served, never the rest of the folder; a
+    # missing file is a plain 404 (the app then says the operator has not provided it) —
+    # NOT the SPA fallback, which would answer 200 with index.html.
+    @legal path_regexp ^/legal/(imprint|privacy)(\.[a-z]{2})?\.md$
+    handle @legal {
+        root * /srv
+        header {
+            Cache-Control "no-cache"
+            X-Content-Type-Options "nosniff"
+            -Server
+        }
+        file_server
+    }
+    handle /legal/* {
+        respond 404
     }
 
     handle {

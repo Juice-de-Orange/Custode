@@ -1,6 +1,6 @@
 # Custode
 
-**The operating system for your household — one app, EU-hosted, ad-free, open source.**
+**The operating system for your household — one app, self-hosted, ad-free, open source.**
 
 Custode is a household platform: recipes, meal planner, shopping list, personal and household
 calendars with CalDAV sync, household tasks with a points economy and an internal marketplace, a
@@ -59,8 +59,9 @@ rights built in from day one (export, erasure, purge jobs, consent for health da
 - **Messaging, guides, notes, comments** — letters with read receipts, a household knowledge base
   with German full-text search, notes with version history, generic object links.
 - **Wearables and weather** — Oura OAuth with Art. 9 consent and raw-data retention, Open-Meteo.
-- **Quick-capture** — "Zuruf": dictate or type, an LLM adapter turns it into tasks, notes or
-  shopping items via the normal sync path.
+- **Quick-capture** — "Zuruf": type a line (or use your keyboard's dictation) and it becomes
+  tasks, notes or shopping items via the normal sync path; the structure is parsed
+  deterministically, an optional local LLM (Ollama) only enriches free-text fields.
 - **Accounts** — passkeys (WebAuthn), TOTP, child accounts with PIN, invite codes, household
   transparency log, operator console on its own subdomain with separate bearer auth.
 - **GDPR** — export, household exit, account deletion with nightly purge, household dissolution
@@ -108,14 +109,20 @@ make web                 # Vite dev server on http://localhost:5173 (proxies /v1
 
 Log in with the demo account printed by `make seed-demo`. Mail lands in mailpit
 (http://localhost:8025). The dev stack is for a developer machine only — it publishes its
-database ports and uses fixed passwords.
+database ports and uses fixed passwords. An operator account for the operator console is created
+the same way as in production (it prints a password and the TOTP secret once):
+
+```bash
+docker compose -f docker-compose.dev.yml run --rm api python -m app.scripts.create_operator you@example.org
+```
 
 ## Self-hosting
 
 The production stack is `docker-compose.prod.yml`: postgres, redis, api, worker, scheduler and
 `web` (Caddy serving the built PWA and proxying `/v1` to the api). It expects a TLS-terminating
-reverse proxy or tunnel in front and publishes no database ports. Background in ADR-0020 and
-ADR-0024 (German).
+reverse proxy or tunnel in front and publishes no database ports. The full operator guide —
+configuration, proxy, legal pages, backup, restore, update — is
+[`docs/operations.md`](docs/operations.md); this section is the short version.
 
 **Bring-up.** On the host, in the cloned repository:
 
@@ -132,11 +139,14 @@ docker compose -f docker-compose.prod.yml up -d
 
 The database roles are created from the `.env` passwords on the **first** start of an empty
 `pgdata` volume only. Migrations run before the app starts; an upgrade is the same sequence
-after `git pull` (`build` → `run --rm api alembic upgrade head` → `up -d`).
+after `git pull` (`build` → `run --rm api alembic upgrade head` → `up -d`); let the job queue
+run empty and take a backup first — the steps are in [`docs/operations.md`](docs/operations.md#update).
 
 **Attaching your proxy.** `web` deliberately publishes no host port. Either put your reverse
 proxy or tunnel container on the stack's network (`custode_default`) and point it at
-`http://web:80`, or publish the port to the host's loopback with a Compose override
+`http://custode-web:80` — a network alias that does not depend on the Compose project name and,
+unlike the bare service name `web`, cannot be confused with another stack's `web` when the proxy
+joins several networks — or publish the port to the host's loopback with a Compose override
 (`services: {web: {ports: ["127.0.0.1:8081:80"]}}`) and proxy to that. Caddy speaks plain HTTP
 on :80 for both site blocks. The operator console is a second site on the host name in
 `OPS_HOST` (default `ops.localhost`), so the proxy must forward the original `Host` header. The
@@ -152,6 +162,10 @@ docker compose -f docker-compose.prod.yml run --rm api \
 
 It prints a generated password and the TOTP secret exactly once (TOTP is mandatory for the
 console); a re-run for the same address changes nothing.
+
+**Legal pages.** Imprint and privacy policy are yours to provide: put `imprint.md` and
+`privacy.md` into the `legal/` folder (see [`legal/README.md`](legal/README.md)); until you do,
+the app says that the operator has not provided them.
 
 **Without SMTP.** Leave `CUSTODE_SMTP_HOST` empty (the template ships a placeholder host —
 clear it) and the app runs with a null mail adapter: registration and login work, accounts stay
@@ -183,6 +197,22 @@ docker compose -f docker-compose.prod.yml up -d
 
 The dump carries no roles — they come from the init script, which is why the restore starts
 postgres on an empty volume first.
+
+## Known limitations
+
+- **Keys.** There is no rotation path for `CUSTODE_CRYPTO_KEY` (#7). The vault's household key
+  is not rotated when a member leaves, and the household recovery code is a shared secret that
+  cannot be changed; a member joins the vault with that code (ADR-0067 addendum). Vault data that
+  an older version's second "setup" already overwrote is not repaired.
+- **Mail.** Without SMTP nobody can reset a forgotten password.
+- **Not exercised by the maintainers:** real SMTP delivery, Oura, quick-capture with an LLM,
+  hardware authenticators, operation behind a real TLS-terminating proxy.
+- **Configuration.** The web app's brand name is a build constant (`web/src/lib/brand.ts`), not
+  the `CUSTODE_BRAND_NAME` setting the backend reads. Unknown `CUSTODE_*` variables are ignored
+  without a warning, so a typo in `.env` goes unnoticed. The database roles are created only on
+  the first start of an empty database volume.
+- **Dev stack.** Fixed host ports on all interfaces and a hard-coded Vite proxy target (#41).
+- **Scope.** Google CalDAV is not supported (#9); the Android app has not started (#11).
 
 ## Development
 
@@ -217,7 +247,7 @@ volume ([ADR-0033](docs/adr/0033-blob-storage-photos.md)); no object store is ne
 
 The codebase was built in AI-assisted sessions working against `CLAUDE.md` and the concept
 documents, with a definition of done per unit, a bug log with cause, fix, regression test and
-lesson ([`docs/BUGLOG.md`](docs/BUGLOG.md)), and 80+ ADRs. German comments and commit messages in
+lesson ([`docs/BUGLOG.md`](docs/BUGLOG.md)), and 70+ ADRs. German comments and commit messages in
 the engineering docs are a trace of that workflow.
 
 ## Licence

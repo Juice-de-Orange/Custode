@@ -4,6 +4,8 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 COPY . .
+# AGPL §13 source link in the footer; empty = the upstream repository (docs/operations.md).
+ARG VITE_SOURCE_URL=""
 RUN npm run build
 
 # Static serving via Caddy (default Caddyfile serves /usr/share/caddy on :80).

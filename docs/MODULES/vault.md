@@ -64,10 +64,15 @@ kein Klartext, keine PII, **auch nicht der Eintrags-Name**. Folge: keine servers
 - `test_vault_rls.py` — RLS-Negativ + WITH CHECK für **beide** Tabellen (Testcontainers).
 - `test_vault_http.py` — Umschlag-Round-Trip (passphrase + recovery, idempotent); **Recovery-Umschlag
   write-once** (zweites Mitglied → 409, auch mit höherer `key_version`; Original unverändert;
-  Gegenprobe: identischer Replay 200, eigener Passphrase-Umschlag 200); Item-CRUD mit
+  Gegenprobe: identischer Replay 200, eigener Passphrase-Umschlag 200); **veralteter Client**
+  (erster Passphrase-Umschlag ohne `wrap_meta.recovery_envelope_id` → 409 `client_outdated`,
+  nichts gespeichert; Passphrase-Wechsel ohne Angabe 200); Item-CRUD mit
   ETag/If-Match (stale→412); Summary verbirgt `ciphertext`; **Kinder→403**; Haushalts-Isolation.
 - Web: `vault-join.test.tsx` — Beitritt mit echter Krypto (dasselbe `K_h`, Recovery-Umschlag
-  unberührt), Einrichten in der Reihenfolge recovery → passphrase, verlorenes Rennen, Kinder-Zustand.
+  unberührt, Umschlag nennt den Recovery-Umschlag), Einrichten in der Reihenfolge recovery →
+  passphrase, verlorenes Rennen, Kinder-Zustand, `client_outdated` → „neu laden".
+  `vault-unreadable.test.tsx` — ein nicht entschlüsselbarer Eintrag heißt „Unlesbarer Eintrag" und
+  wird erst nach Bestätigung gelöscht.
 
 ## Web-Krypto (S14a, ADR-0067)
 `web/src/vault/crypto.ts` (libsodium-wasm, **dynamisch importiert** → Lazy-Chunk): Argon2id

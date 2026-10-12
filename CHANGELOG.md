@@ -18,9 +18,24 @@ history (June–September 2026, German) is not part of the public repository.
 - The English interface is reachable: the UI follows the browser language (German as fallback)
   and can be pinned per browser under Profile → Language.
 - The account page shows admins the sign-in link for child accounts, with a copy button.
+- `docs/operations.md`: the operator guide in English — install, configure, reverse proxy, legal
+  pages, backup, restore, update (with draining the job queue first), logs and health.
+- The `web` service has the network alias `custode-web`: point your proxy at `custode-web:80`,
+  independent of the Compose project name.
 
 ### Changed
 
+- README: the tagline says "self-hosted" instead of "EU-hosted" (there is no hosted service);
+  quick-capture is described as it works (deterministic parsing, an optional local LLM enriches
+  free text); a "Known limitations" section.
+- Imprint and privacy policy come from the operator: Markdown files in the `legal/` folder
+  (`imprint.md`, `privacy.md`, optionally per language), served by the `web` container under
+  `/legal/`. Without them the pages say that the operator has not provided them; the draft texts
+  that every instance used to ship as its own are gone. `legal/privacy.example.md` is a template
+  (see `docs/operations.md`, "Legal pages"). `CUSTODE_LEGAL_DIR` points the stack at another
+  folder.
+- The footer's "Source code" link (AGPL §13) can point at a modified version's source:
+  `CUSTODE_SOURCE_URL` in `.env`, applied at the next `build`.
 - A child account is no longer asked to confirm an e-mail address it does not have, and `/vault`
   tells child and guest accounts that the vault is not available to them.
 - README: what the functional checks covered and what they did not; the backup section names the
@@ -35,6 +50,16 @@ history (June–September 2026, German) is not part of the public repository.
 
 ### Fixed
 
+- `create_operator` works in the dev stack: the dev api now connects with the operator roles
+  (`ops_readonly`, `ops_actions`) like production; before, it failed with "permission denied for
+  table operators".
+- Vault: an entry your key cannot decrypt is shown as "Unreadable entry" with an explanation
+  instead of "??", and deleting it asks for confirmation first — another member may still be
+  able to read it. Readable entries keep their direct delete button.
+- Vault: an outdated app (for example an old build still served by an installed PWA) can no
+  longer store a passphrase envelope around a key nobody else in the household has. A member's
+  first passphrase envelope must name the household's recovery envelope; otherwise the server
+  answers `409 client_outdated` and stores nothing, and the current app asks you to reload.
 - Vault: a household's second member can no longer destroy the first member's vault. The
   household-wide recovery envelope is write-once on the server (`409 vault_already_set_up`), and
   a member without an envelope of their own now **joins** the existing vault with the household's

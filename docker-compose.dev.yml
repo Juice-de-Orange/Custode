@@ -57,6 +57,11 @@ services:
       CUSTODE_DATABASE_URL: postgresql+asyncpg://custode_app:custode@postgres:5432/custode
       CUSTODE_DATABASE_URL_ADMIN: postgresql+asyncpg://custode:custode@postgres:5432/custode
       CUSTODE_DATABASE_URL_MAINT: postgresql+asyncpg://custode_maint:custode_maint@postgres:5432/custode
+      # Betreiber-Konsole (ADR-0071) mit den echten ops-Rollen aus init.sql — wie auf Prod. Ohne
+      # sie faellt die Konsole auf custode_app zurueck, und `create_operator` scheitert mit
+      # "permission denied for table operators" (custode_app darf die ops-Tabellen nicht lesen).
+      CUSTODE_DATABASE_URL_OPS: postgresql+asyncpg://ops_readonly:ops_readonly@postgres:5432/custode
+      CUSTODE_DATABASE_URL_OPS_ACTIONS: postgresql+asyncpg://ops_actions:ops_actions@postgres:5432/custode
       CUSTODE_REDIS_URL: redis://redis:6379/0
       CUSTODE_SMTP_HOST: mailpit
       CUSTODE_SMTP_PORT: "1025"

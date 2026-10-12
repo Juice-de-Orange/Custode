@@ -16,8 +16,11 @@ import { useRealtime } from "../realtime/useRealtime";
 // Routes that work without an active household: account (create/join/switch lives
 // there), personal settings, and the public legal/release pages. Every other module
 // screen is household-scoped and would only produce 403s.
-// Public repository of this AGPL-3.0 application (§13 source offer, linked in the footer).
-const SOURCE_URL = "https://github.com/Juice-de-Orange/Custode";
+// Public repository of this AGPL-3.0 application (§13 source offer, linked in the footer). An
+// operator who runs a MODIFIED version must offer that version's source instead: set
+// CUSTODE_SOURCE_URL in .env (passed to the web build as VITE_SOURCE_URL, docs/operations.md).
+const SOURCE_URL: string =
+  import.meta.env.VITE_SOURCE_URL || "https://github.com/Juice-de-Orange/Custode";
 
 const NO_HOUSEHOLD_OK = new Set([
   "/",
