@@ -277,6 +277,7 @@ Die übrigen Import-Fehler (`import_url_blocked`, `import_fetch_failed`, `import
 | slug | HTTP | Bedeutung | Was die Person tun kann |
 |---|---|---|---|
 | `vault_already_set_up` | 409 | Der Haushalt hat bereits einen Recovery-Umschlag; `PUT /v1/vault/keys` mit `kind=recovery` ersetzt ihn nie. Der Server kann nicht prüfen, ob ein zweiter Umschlag denselben Haushaltsschlüssel trägt (opak) — ein Ersetzen würde den Schlüssel unter allen anderen Mitgliedern austauschen | Dem bestehenden Tresor **beitreten**: Wiederherstellungs-Code des Haushalts eingeben, eigene Passphrase festlegen |
+| `client_outdated` | 409 | Der erste Passphrase-Umschlag eines Mitglieds (`PUT /v1/vault/keys`, `kind=passphrase`) nennt nicht den lebenden Recovery-Umschlag des Haushalts in `wrap_meta.recovery_envelope_id`. So schreibt nur ein veralteter Client (alte Einrichtungs-Reihenfolge), der sonst einen Schlüssel speichern würde, den niemand sonst im Haushalt hat. Nichts wird gespeichert | App neu laden (installierte App schließen und neu öffnen bzw. „Neu laden" im Update-Hinweis), dann erneut versuchen |
 
 ---
 

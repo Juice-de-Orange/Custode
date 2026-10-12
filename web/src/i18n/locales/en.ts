@@ -468,6 +468,7 @@ export const messages: Record<string, string> = {
   "vault.unreadableHint": "Encrypted with a different key than yours. Other members of the household may still be able to read it.",
   "vault.unreadableConfirm": "Really delete this entry? You cannot read it, but for other members of the household it may be a valid secret. If in doubt, ask them first.",
   "vault.unreadableDelete": "Delete anyway",
+  "vault.error.clientOutdated": "This version of the app is out of date. Reload the page (or close and reopen the installed app), then try again.",
   "vault.edit": "Edit",
   "vault.cancel": "Cancel",
   "guides.section": "Guides",

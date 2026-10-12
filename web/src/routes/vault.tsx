@@ -95,15 +95,17 @@ export function VaultPage() {
     // If somebody else got there first (409), nothing of ours has been stored yet and the page
     // falls into join mode — the other order would leave this member with a passphrase envelope
     // around a key nobody else has.
+    let recoveryId: string;
     try {
-      await putKey.mutateAsync({
+      const stored = await putKey.mutateAsync({
         kind: "recovery",
         wrapped_key: recEnv.wrapped_key,
         wrap_meta: recEnv.wrap_meta,
       });
+      recoveryId = stored.id;
     } catch (err) {
       const taken = err instanceof ProblemError && err.slug === "vault_already_set_up";
-      setError(taken ? "vault.error.alreadySetUp" : "state.error");
+      setError(taken ? "vault.error.alreadySetUp" : errorKey(err));
       if (taken) void keys.refetch();
       return;
     }
@@ -114,7 +116,7 @@ export function VaultPage() {
       await putKey.mutateAsync({
         kind: "passphrase",
         wrapped_key: passEnv.wrapped_key,
-        wrap_meta: passEnv.wrap_meta,
+        wrap_meta: withRecoveryRef(passEnv.wrap_meta, recoveryId),
       });
     } catch {
       // Unlocked with the key in memory, and asked to set the passphrase again (same UI as
@@ -227,10 +229,26 @@ export function VaultPage() {
   return (
     <VaultUnlocked
       householdKey={householdKey}
+      recoveryEnvelopeId={recoveryEnvelope?.id ?? null}
       recoveryCode={recoveryCode}
       needsNewPassphrase={cameFromRecovery}
     />
   );
+}
+
+/** A member's FIRST passphrase envelope must name the recovery envelope whose household key it
+ *  wraps — the server refuses it otherwise (409 `client_outdated`, `_require_recovery_reference`
+ *  in the vault service). Sent on every passphrase write; on a replace the server ignores it. */
+function withRecoveryRef(meta: WrapMeta, recoveryEnvelopeId: string | null) {
+  return recoveryEnvelopeId ? { ...meta, recovery_envelope_id: recoveryEnvelopeId } : meta;
+}
+
+/** Message key for a failed envelope write. `client_outdated` means this page runs an older build
+ *  than the server expects: say "reload" instead of the generic error. */
+function errorKey(err: unknown): string {
+  return err instanceof ProblemError && err.slug === "client_outdated"
+    ? "vault.error.clientOutdated"
+    : "state.error";
 }
 
 function RecoveryNotice({ code }: { code: string }) {
@@ -272,10 +290,12 @@ function ExitRotationNotice() {
 // The unlocked vault: a list of secrets (names decrypted client-side) plus add/view/delete.
 function VaultUnlocked({
   householdKey,
+  recoveryEnvelopeId,
   recoveryCode,
   needsNewPassphrase,
 }: {
   householdKey: Uint8Array;
+  recoveryEnvelopeId: string | null;
   recoveryCode: string | null;
   needsNewPassphrase: boolean;
 }) {
@@ -333,7 +353,11 @@ function VaultUnlocked({
           reaction to a departure, because the limitation is standing. */}
       <ExitRotationNotice />
 
-      <ChangePassphrase householdKey={householdKey} highlight={needsNewPassphrase} />
+      <ChangePassphrase
+        householdKey={householdKey}
+        recoveryEnvelopeId={recoveryEnvelopeId}
+        highlight={needsNewPassphrase}
+      />
 
       <div className="max-w-md space-y-2 rounded-lg border border-stein/30 p-4">
         <h2 className="text-sm font-semibold text-stein-text">
@@ -583,9 +607,11 @@ function SecretReveal({
 // passphrase and store the envelope. Used both after a recovery unlock and to rotate the passphrase.
 function ChangePassphrase({
   householdKey,
+  recoveryEnvelopeId,
   highlight,
 }: {
   householdKey: Uint8Array;
+  recoveryEnvelopeId: string | null;
   highlight: boolean;
 }) {
   const putKey = usePutKey();
@@ -601,11 +627,16 @@ function ChangePassphrase({
       return;
     }
     const env = await wrapHouseholdKey(householdKey, next);
-    await putKey.mutateAsync({
-      kind: "passphrase",
-      wrapped_key: env.wrapped_key,
-      wrap_meta: env.wrap_meta,
-    });
+    try {
+      await putKey.mutateAsync({
+        kind: "passphrase",
+        wrapped_key: env.wrapped_key,
+        wrap_meta: withRecoveryRef(env.wrap_meta, recoveryEnvelopeId),
+      });
+    } catch (err) {
+      setError(errorKey(err));
+      return;
+    }
     setNext("");
     setDone(true);
   };

@@ -468,6 +468,7 @@ export const messages: Record<string, string> = {
   "vault.unreadableHint": "Mit einem anderen Schlüssel verschlüsselt, als du hast. Für andere Mitglieder des Haushalts ist er womöglich lesbar.",
   "vault.unreadableConfirm": "Diesen Eintrag wirklich löschen? Du kannst ihn nicht lesen, aber für andere Mitglieder des Haushalts kann er ein gültiges Geheimnis sein. Frag sie im Zweifel vorher.",
   "vault.unreadableDelete": "Trotzdem löschen",
+  "vault.error.clientOutdated": "Diese Version der App ist veraltet. Lade die Seite neu (oder schließe die installierte App und öffne sie wieder) und versuch es dann noch einmal.",
   "vault.edit": "Bearbeiten",
   "vault.cancel": "Abbrechen",
   "guides.section": "Anleitungen",

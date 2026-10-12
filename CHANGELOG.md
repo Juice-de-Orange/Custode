@@ -35,6 +35,10 @@ history (June–September 2026, German) is not part of the public repository.
 - Vault: an entry your key cannot decrypt is shown as "Unreadable entry" with an explanation
   instead of "??", and deleting it asks for confirmation first — another member may still be
   able to read it. Readable entries keep their direct delete button.
+- Vault: an outdated app (for example an old build still served by an installed PWA) can no
+  longer store a passphrase envelope around a key nobody else in the household has. A member's
+  first passphrase envelope must name the household's recovery envelope; otherwise the server
+  answers `409 client_outdated` and stores nothing, and the current app asks you to reload.
 - Vault: a household's second member can no longer destroy the first member's vault. The
   household-wide recovery envelope is write-once on the server (`409 vault_already_set_up`), and
   a member without an envelope of their own now **joins** the existing vault with the household's
