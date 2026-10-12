@@ -814,4 +814,11 @@ export const messages: Record<string, string> = {
     "Only admins can create the household export. You can still download your own data.",
   "export.err.session": "Your session has expired. Please sign in again and retry.",
   "export.err.generic": "The export did not work. Please try again.",
+  "demo.banner": "Demo — data resets every hour. Do not enter personal data.",
+  "demo.banner.resetting": "Demo — the data is being reset right now. Reload in a minute.",
+  "demo.refused": "That action is switched off in the demo.",
+  "demo.login": "This is the public demo. The shared login is filled in: {email} / {password}",
+  "demo.noSignup": "Sign-up is switched off in the demo. Use the shared demo login on the sign-in page.",
+  "demo.noMail": "The demo sends no e-mail, so passwords cannot be reset here. The shared demo login is on the sign-in page.",
+  "demo.noVault": "The vault is switched off in the demo. On your own instance it stores shared passwords encrypted in the browser.",
 };

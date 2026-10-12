@@ -20,6 +20,8 @@ type LoginFormProps = {
   onPasskey?: () => void; // passwordless login; the route wires the ceremony + navigation
   passkeySupported?: boolean; // window.PublicKeyCredential present
   passkeyPending?: boolean;
+  initialEmail?: string; // a public demo prefills its shared login
+  initialPassword?: string;
 };
 
 // Pure login form (no router/query) so it stays trivially testable; the route wires the
@@ -34,9 +36,11 @@ export function LoginForm({
   onPasskey,
   passkeySupported = false,
   passkeyPending = false,
+  initialEmail = "",
+  initialPassword = "",
 }: LoginFormProps) {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState(initialEmail);
+  const [password, setPassword] = useState(initialPassword);
   const [totpCode, setTotpCode] = useState("");
   const [recoveryCode, setRecoveryCode] = useState("");
   const [recoveryMode, setRecoveryMode] = useState(false);

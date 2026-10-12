@@ -5,6 +5,7 @@ import { useState } from "react";
 import { ProblemError, useRegister } from "../auth/session";
 import { AuthShell } from "../components/auth-shell";
 import { RegisterForm, type RegisterValues } from "../components/register-form";
+import { useDemo } from "../lib/demo";
 
 const ERROR_KEYS: Record<string, string> = {
   email_taken: "auth.error.email_taken",
@@ -16,6 +17,7 @@ export function RegisterPage() {
   const navigate = useNavigate();
   const register = useRegister();
   const [error, setError] = useState<string | null>(null);
+  const demo = useDemo();
 
   const onSubmit = (values: RegisterValues) => {
     setError(null);
@@ -37,7 +39,13 @@ export function RegisterPage() {
         </Link>
       }
     >
-      <RegisterForm onSubmit={onSubmit} pending={register.isPending} error={error} />
+      {demo ? (
+        <p className="text-sm">
+          <Trans id="demo.noSignup" />
+        </p>
+      ) : (
+        <RegisterForm onSubmit={onSubmit} pending={register.isPending} error={error} />
+      )}
     </AuthShell>
   );
 }

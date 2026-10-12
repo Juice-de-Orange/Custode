@@ -23,6 +23,8 @@ Aufgabenteilung (ADR-0018):
   - [`errors.md`](errors.md) — Fehler-Referenzkatalog (RFC 9457).
   - [`operations.md`](operations.md) — **Betrieb (Englisch):** Installation, Konfiguration,
     Proxy, Rechtstexte, Backup, Restore, Update — die Zusammenfassung von ADR-0020/0024.
+  - [`demo.md`](demo.md) — **öffentliche Demo (Englisch):** `CUSTODE_DEMO_MODE`,
+    `docker-compose.demo.yml`, stündlicher Reset, Grenzen und Restrisiken.
   - [`NOTIFICATIONS.md`](NOTIFICATIONS.md) — Default-Matrix Benachrichtigungen (Phase 1).
   - [`../CHANGELOG.md`](../CHANGELOG.md) — Änderungshistorie (Keep a Changelog), im Repo-Root.
 
