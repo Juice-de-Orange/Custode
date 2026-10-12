@@ -148,7 +148,8 @@ Tx-Rollback bei jedem Fehlschlag; der Request-Pfad bekommt den Port via `app.sta
   `PATCH {id}` (If-Match, owner-only) · `DELETE {id}` (Soft-Delete, owner-only) ·
   `POST {id}/cancel-occurrence` · `POST {id}/restore-occurrence` (absagen/zurücknehmen) ·
   `POST {id}/move-occurrence` · `POST {id}/reset-occurrence` (verschieben/zurücksetzen) — alle
-  owner-only, **kein** If-Match (Mengen-Semantik, ADR-0043/0048). CSRF auf Writes.
+  owner-only, **kein** If-Match (Mengen-Semantik, ADR-0043/0048). CSRF auf Writes. Alle Zeitpunkte
+  in Requests (Query und Body) brauchen einen Offset, sonst 422 `validation` (`timezone_aware`).
 - **HTTP `/v1/calendar/feed` (member/admin, CSRF):** `POST` (erzeugt/rotiert die Abo-URL) · `DELETE`
   (widerruft). **`GET /v1/calendar/feed/<token>.ics` (unauth, read-only)** — der Abo-Endpoint.
 - **Cross-Modul:** importiert **nur** `kernel/*`. `calendar.api` exportiert `list_absences(frm, to)`

@@ -17,24 +17,38 @@ Eintragsschema:
 
 ---
 
-## 2026-10-12 — Zeitfenster ohne Offset beantwortete der Kalender mit 500  (Modul: calendar, scheduling, Schwere: mittel)
+## 2026-10-12 — Zeitpunkte ohne Offset beantwortete der Kalender mit 500  (Modul: calendar, scheduling, Schwere: mittel)
 - **Symptom:** `GET /v1/calendar/events?from=2026-07-01T00:00:00&to=2026-07-08T00:00:00` — also
   `from`/`to` **ohne** Zeitzonen-Offset — lieferte 500 `internal` mit Referenzcode, sobald der
   Haushalt ein Event hatte. `GET /v1/scheduling/slots` ebenso, auch wenn nur eine der beiden Grenzen
-  naiv war. Gefunden in einer Migrationsprobe gegen die API, nicht über die PWA.
+  naiv war. Dieselbe Klasse in den Request-Bodys: `cancel-occurrence`/`move-occurrence` mit naivem
+  Zeitpunkt, `move-occurrence` mit naivem `new_start` und bewusstem `new_end`, `POST /events` mit
+  gemischtem Paar und `PATCH` mit nur naivem `starts_at` — alle 500. Gefunden in einer
+  Migrationsprobe gegen die API, nicht über die PWA.
 - **Ursache:** Die Query-Parameter waren `datetime | None`; Pydantic nimmt naive Werte an. Im Dienst
   trafen sie auf die tz-bewussten `starts_at`/`ends_at` (`calendar/expand.py`, Overlap-Test) bzw.
   auf die andere Grenze (`scheduling/router.py`, `window_to <= window_from`) →
-  `TypeError: can't compare offset-naive and offset-aware datetimes`.
-- **Fix:** Beide Router nehmen `AwareDatetime`: eine Grenze ohne Offset ist ein Eingabefehler
-  (422 `validation`, Pydantic-Typ `timezone_aware`), bevor sie den Dienst erreicht. Bewusst **kein**
-  stilles „naiv = UTC": welche Zone der Aufrufer meinte, weiß der Server nicht. Das Web schickt
-  ohnehin `toISOString()` (mit `Z`); das OpenAPI-Schema bleibt `date-time`.
+  `TypeError: can't compare offset-naive and offset-aware datetimes`. In den Bodys dasselbe in
+  `expand.is_occurrence`, in `service.update_event` (Ende vor Start) und in den
+  `_end_after_start`-Validatoren — dort wird der `TypeError` von Pydantic **nicht** zu einer 422.
+- **Fix:** Beide Router und die Request-Schemas des Kalenders (`EventCreate`, `EventUpdate`,
+  `OccurrenceRef`, `OccurrenceMove`) nehmen `AwareDatetime`: ein Zeitpunkt ohne Offset ist ein
+  Eingabefehler (422 `validation`, Pydantic-Typ `timezone_aware`), bevor er Validator oder Dienst
+  erreicht. Bewusst **kein** stilles „naiv = UTC": welche Zone der Aufrufer meinte, weiß der Server
+  nicht. Das ändert Verhalten für API-Clients — ein naives Paar bei Anlegen/PATCH und ein naiver
+  `occurrence_start` bei restore/reset gingen bisher als UTC durch. Kein Aufrufer im Repo schickt
+  so etwas: das Web sendet `toISOString()` (mit `Z`) oder gibt Server-Werte zurück, `seed_demo`
+  baut tz-bewusste Zeiten, ICS-/CalDAV-Import laufen nicht über diese Schemas. Das OpenAPI-Schema
+  bleibt `date-time`, der generierte Client unverändert.
 - **Regressionstest:** `tests/test_calendar_http.py::test_range_without_offset_is_422_not_500` und
   `tests/test_scheduling_http.py::test_window_without_offset_is_422_not_500` (je drei Varianten,
-  vorher rot: 500 statt 422).
+  vorher rot: 500 statt 422); `test_occurrence_body_without_offset_is_422`,
+  `test_create_body_without_offset_is_422`, `test_patch_body_without_offset_is_422` (vorher rot:
+  500, bzw. 200/201 bei den bisher als UTC gelesenen Fällen).
 - **Lehre:** Ein Zeitpunkt, der aus einer URL kommt, ist erst ein Zeitpunkt, wenn er eine Zone hat.
-  Neue `datetime`-Query-Parameter gleich als `AwareDatetime` deklarieren.
+  Neue `datetime`-Eingaben (Query wie Body) gleich als `AwareDatetime` deklarieren. Und: ein
+  `model_validator`, der zwei Werte vergleicht, kann selbst eine 500 werfen — aus einem `TypeError`
+  macht Pydantic keinen Validierungsfehler.
 
 ## 2026-10-03 — Das zweite Mitglied zerstörte den Tresor des ersten  (Modul: vault, Schwere: hoch)
 - **Symptom:** Das zweite erwachsene Mitglied eines Haushalts sah auf `/vault` nur „Tresor

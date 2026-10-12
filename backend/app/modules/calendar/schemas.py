@@ -8,18 +8,20 @@ from datetime import datetime
 from typing import Literal
 from urllib.parse import urlsplit
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import AwareDatetime, BaseModel, Field, field_validator, model_validator
 
 EventLayer = Literal["household", "personal"]
 EventKind = Literal["normal", "absence", "guest"]
 
 
+# Request instants must carry an offset (422 otherwise): a naive value cannot be compared with the
+# stored UTC instants, and the server cannot know which zone the caller meant.
 class EventCreate(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     description: str | None = Field(default=None, max_length=4000)
     location: str | None = Field(default=None, max_length=200)
-    starts_at: datetime
-    ends_at: datetime
+    starts_at: AwareDatetime
+    ends_at: AwareDatetime
     all_day: bool = False
     layer: EventLayer = "household"
     busy: bool = True
@@ -46,8 +48,8 @@ class EventUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=200)
     description: str | None = Field(default=None, max_length=4000)
     location: str | None = Field(default=None, max_length=200)
-    starts_at: datetime | None = None
-    ends_at: datetime | None = None
+    starts_at: AwareDatetime | None = None
+    ends_at: AwareDatetime | None = None
     all_day: bool | None = None
     layer: EventLayer | None = None
     busy: bool | None = None
@@ -59,15 +61,15 @@ class EventUpdate(BaseModel):
 class OccurrenceRef(BaseModel):
     """Identifies one occurrence of a series by its original start instant (RFC-5545 EXDATE key)."""
 
-    occurrence_start: datetime
+    occurrence_start: AwareDatetime
 
 
 class OccurrenceMove(BaseModel):
     """Move one occurrence (identified by ``occurrence_start``) to a new time (P5-S10)."""
 
-    occurrence_start: datetime
-    new_start: datetime
-    new_end: datetime
+    occurrence_start: AwareDatetime
+    new_start: AwareDatetime
+    new_end: AwareDatetime
 
     @model_validator(mode="after")
     def _end_after_start(self) -> OccurrenceMove:

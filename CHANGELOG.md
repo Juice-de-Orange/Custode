@@ -29,6 +29,11 @@ history (June–September 2026, German) is not part of the public repository.
   `.env.prod.example`, `infra/postgres/init.prod.sh`, `infra/caddy/Caddyfile`); the deploy job
   is not part of the public CI.
 - Problem-type URIs point at the error catalogue in this repository.
+- Calendar API: event times in request bodies must carry a time-zone offset (`starts_at`/`ends_at`
+  on create and PATCH, `occurrence_start`/`new_start`/`new_end` on the occurrence endpoints);
+  otherwise `422 validation`. **Behaviour change for API clients:** a create or PATCH with a naive
+  pair, and a restore/reset with a naive `occurrence_start`, used to succeed with the value read as
+  UTC. The web app always sends offsets and is not affected.
 
 ### Fixed
 
@@ -42,7 +47,9 @@ history (June–September 2026, German) is not part of the public repository.
 - Calendar: an end before the start is reported at the end field instead of the generic error.
 - Calendar and scheduling: a `from`/`to` query bound without a time-zone offset
   (`GET /v1/calendar/events?from=2026-07-01T00:00:00`, same for `/v1/scheduling/slots`) is
-  rejected with `422 validation`; it failed with 500.
+  rejected with `422 validation`; it failed with 500. The same for naive times in the calendar's
+  request bodies that failed with 500: cancelling or moving an occurrence, and a create or PATCH
+  that mixed a naive with an offset-carrying time.
 - `create_operator` refuses an argument that is not an e-mail address.
 - `make install` uses `npm ci`, which leaves `web/package-lock.json` untouched.
 - Worker: taskiq worker children no longer die every five seconds on an idle queue (redis-py 8
