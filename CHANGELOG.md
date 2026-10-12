@@ -21,6 +21,14 @@ history (June–September 2026, German) is not part of the public repository.
 
 ### Changed
 
+- Imprint and privacy policy come from the operator: Markdown files in the `legal/` folder
+  (`imprint.md`, `privacy.md`, optionally per language), served by the `web` container under
+  `/legal/`. Without them the pages say that the operator has not provided them; the draft texts
+  that every instance used to ship as its own are gone. `legal/privacy.example.md` is a template
+  (see `docs/operations.md`, "Legal pages"). `CUSTODE_LEGAL_DIR` points the stack at another
+  folder.
+- The footer's "Source code" link (AGPL §13) can point at a modified version's source:
+  `CUSTODE_SOURCE_URL` in `.env`, applied at the next `build`.
 - A child account is no longer asked to confirm an e-mail address it does not have, and `/vault`
   tells child and guest accounts that the vault is not available to them.
 - README: what the functional checks covered and what they did not; the backup section names the

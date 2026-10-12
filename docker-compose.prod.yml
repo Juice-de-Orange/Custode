@@ -225,6 +225,9 @@ services:
   web:
     build:
       context: ./web
+      args:
+        # Footer "Source code" link (AGPL §13). Set it when you run a modified version.
+        VITE_SOURCE_URL: ${CUSTODE_SOURCE_URL:-}
     restart: unless-stopped
     # Caddy serves the built SPA and proxies /v1, /healthz, /readyz, /metrics to the api
     # — one origin (cookies are SameSite=Lax). The image bakes `dist`; we override its
@@ -237,6 +240,10 @@ services:
       OPS_HOST: ${OPS_HOST:-ops.localhost}
     volumes:
       - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # Imprint and privacy policy of this instance (docs/operations.md, "Legal pages"):
+      # imprint.md / privacy.md, optionally per language (imprint.en.md). Missing files → the
+      # app says the operator has not provided them.
+      - ${CUSTODE_LEGAL_DIR:-./legal}:/srv/legal:ro
     depends_on:
       - api
     deploy:

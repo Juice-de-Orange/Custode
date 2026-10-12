@@ -21,6 +21,24 @@
         reverse_proxy api:8000
     }
 
+    # The operator's legal texts (docs/operations.md, "Legal pages"), mounted from the host's
+    # legal/ folder. Only imprint/privacy files are served, never the rest of the folder; a
+    # missing file is a plain 404 (the app then says the operator has not provided it) —
+    # NOT the SPA fallback, which would answer 200 with index.html.
+    @legal path_regexp ^/legal/(imprint|privacy)(\.[a-z]{2})?\.md$
+    handle @legal {
+        root * /srv
+        header {
+            Cache-Control "no-cache"
+            X-Content-Type-Options "nosniff"
+            -Server
+        }
+        file_server
+    }
+    handle /legal/* {
+        respond 404
+    }
+
     handle {
         root * /usr/share/caddy
 
