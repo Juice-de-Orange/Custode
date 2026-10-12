@@ -64,7 +64,7 @@
     "vitest-axe": "^0.1.0"
   },
   "overrides": {
-    "handlebars": "^4.7.9",
+    "handlebars": "^4.7.10",
     "tar": "^7.5.11",
     "postcss": "^8.5.18",
     "tmp": "^0.2.6",
