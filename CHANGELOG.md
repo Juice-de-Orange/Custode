@@ -40,6 +40,9 @@ history (June–September 2026, German) is not part of the public repository.
 
 ### Fixed
 
+- `create_operator` works in the dev stack: the dev api now connects with the operator roles
+  (`ops_readonly`, `ops_actions`) like production; before, it failed with "permission denied for
+  table operators".
 - Vault: an entry your key cannot decrypt is shown as "Unreadable entry" with an explanation
   instead of "??", and deleting it asks for confirmation first — another member may still be
   able to read it. Readable entries keep their direct delete button.

@@ -108,7 +108,12 @@ make web                 # Vite dev server on http://localhost:5173 (proxies /v1
 
 Log in with the demo account printed by `make seed-demo`. Mail lands in mailpit
 (http://localhost:8025). The dev stack is for a developer machine only — it publishes its
-database ports and uses fixed passwords.
+database ports and uses fixed passwords. An operator account for the operator console is created
+the same way as in production (it prints a password and the TOTP secret once):
+
+```bash
+docker compose -f docker-compose.dev.yml run --rm api python -m app.scripts.create_operator you@example.org
+```
 
 ## Self-hosting
 
