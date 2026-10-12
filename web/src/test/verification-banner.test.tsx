@@ -11,7 +11,13 @@ function renderBanner(overrides: Partial<Props> = {}) {
   const onResend = vi.fn();
   render(
     <I18nProvider i18n={i18n}>
-      <VerificationBanner onResend={onResend} pending={false} sent={false} {...overrides} />
+      <VerificationBanner
+        onResend={onResend}
+        pending={false}
+        notice={null}
+        mailEnabled
+        {...overrides}
+      />
     </I18nProvider>,
   );
   return { onResend };
@@ -25,7 +31,7 @@ test("prompts to verify and resends on click", () => {
 });
 
 test("confirms after a resend (no button)", () => {
-  renderBanner({ sent: true });
+  renderBanner({ notice: "verify.banner.resent" });
   expect(screen.getByText("Bestätigungs-Mail gesendet.")).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Bestätigungs-Mail erneut senden" })).toBeNull();
 });
@@ -35,4 +41,19 @@ test("only an account that has an e-mail address is asked to confirm it", () => 
   expect(needsEmailVerification({ email: "a@example.org", email_verified: true })).toBe(false);
   // A child account signs in with username + PIN and has no address to confirm.
   expect(needsEmailVerification({ email: null, email_verified: false })).toBe(false);
+});
+
+// Quick start without SMTP: the server sends no mail at all (me.mail_enabled false). The banner
+// used to offer the resend anyway and then said "sent" for a mail that never left the server.
+test("without mail on the server it explains instead of offering a resend", () => {
+  renderBanner({ mailEnabled: false });
+  expect(screen.getByText(/Dieser Server verschickt keine E-Mails/)).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Bestätigungs-Mail erneut senden" })).toBeNull();
+  expect(screen.queryByText("Bestätigungs-Mail gesendet.")).toBeNull();
+});
+
+test("a refused resend shows the error, not a confirmation", () => {
+  renderBanner({ notice: "state.error" });
+  expect(screen.getByText("Etwas ist schiefgelaufen.")).toBeInTheDocument();
+  expect(screen.queryByText("Bestätigungs-Mail gesendet.")).toBeNull();
 });

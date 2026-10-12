@@ -2,6 +2,7 @@ import { Trans } from "@lingui/react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 
+import type { SessionResponse } from "../api/types.gen";
 import { ProblemError, useLogin, usePasskeyLogin } from "../auth/session";
 import { passkeysSupported } from "../auth/webauthn";
 import { AuthShell } from "../components/auth-shell";
@@ -23,14 +24,17 @@ export function LoginPage() {
   const passkey = usePasskeyLogin();
   const [totpRequired, setTotpRequired] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // A visitor of the public demo lands on the household's day, not on the account page.
   const demo = useDemo();
+  // A member lands on the household's day; an account without a household (or before picking
+  // one) on the account page, where it creates or joins one. The demo visitor is a member.
+  const landing = (session: SessionResponse) =>
+    navigate({ to: demo || session.household_id ? "/today" : "/" });
   const supported = passkeysSupported();
 
   const onSubmit = (values: LoginValues) => {
     setError(null);
     login.mutate(values, {
-      onSuccess: () => navigate({ to: demo ? "/today" : "/" }),
+      onSuccess: landing,
       onError: (err) => {
         const slug = err instanceof ProblemError ? err.slug : "error";
         if (slug === "totp_required") setTotpRequired(true);
@@ -42,7 +46,7 @@ export function LoginPage() {
   const onPasskey = () => {
     setError(null);
     passkey.mutate(undefined, {
-      onSuccess: () => navigate({ to: demo ? "/today" : "/" }),
+      onSuccess: landing,
       onError: (err) => {
         const slug = err instanceof ProblemError ? err.slug : "error";
         setError(PASSKEY_ERROR_KEYS[slug] ?? "auth.error.passkey");

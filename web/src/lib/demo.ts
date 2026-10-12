@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 
 // Public demo mode (docs/demo.md). The server says whether this instance is a demo: `/v1/demo`
-// exists only there (it is not in the OpenAPI schema, like /healthz), so a normal instance answers
-// 404 and everything here stays inert. The demo login is public by design — the sign-in page
-// shows it.
+// (not in the OpenAPI schema, like /healthz) answers `{enabled: false}` on a normal instance, and
+// everything here stays inert. A 404 (an older server) means the same. The demo login is public by
+// design — the sign-in page shows it.
 
 export type DemoInfo = {
   enabled: boolean;

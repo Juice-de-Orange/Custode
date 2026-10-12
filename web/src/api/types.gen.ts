@@ -1903,6 +1903,10 @@ export type MeResponse = {
      */
     email_verified: boolean;
     /**
+     * Mail Enabled
+     */
+    mail_enabled: boolean;
+    /**
      * Flags
      */
     flags: {

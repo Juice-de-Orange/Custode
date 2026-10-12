@@ -43,7 +43,7 @@ export function AccountPage() {
   const requestVerify = useRequestEmailVerification();
   const [createError, setCreateError] = useState<string | null>(null);
   const [joinError, setJoinError] = useState<string | null>(null);
-  const [verifySent, setVerifySent] = useState(false);
+  const [verifyNotice, setVerifyNotice] = useState<string | null>(null);
   const [childError, setChildError] = useState<string | null>(null);
   const [createdChild, setCreatedChild] = useState<string | null>(null);
 
@@ -61,9 +61,13 @@ export function AccountPage() {
       {needsEmailVerification(data) ? (
         <VerificationBanner
           pending={requestVerify.isPending}
-          sent={verifySent}
+          notice={verifyNotice}
+          mailEnabled={data.mail_enabled}
           onResend={() =>
-            requestVerify.mutate(undefined, { onSettled: () => setVerifySent(true) })
+            requestVerify.mutate(undefined, {
+              onSuccess: () => setVerifyNotice("verify.banner.resent"),
+              onError: () => setVerifyNotice("state.error"),
+            })
           }
         />
       ) : null}

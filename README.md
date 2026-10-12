@@ -26,17 +26,20 @@ git clone https://github.com/Juice-de-Orange/Custode.git && cd Custode
 docker compose up -d   # pulls or builds the images, migrates the database, starts everything
 ```
 
-Open <http://localhost:8080> and create an account; the first account creates your household.
+Open <http://localhost:8080>, sign up, then create your household on the account page that
+follows (or join one with an invite code).
 Want to look around first? `docker compose run --rm seed-demo` adds an invented, lived-in
 household (sign in as `admin@custode.local` / `custode-admin-demo` — a published password, so only
 on a trial instance).
 
-From `git clone` to the sign-in page took **about 4 minutes** (253 s) on a clean Docker host — no
-cached images, a ~90 Mbit/s line — measured on 2026-10-12 while building from source, before
-v0.1.0 published its images. Since v0.1.0, `up` pulls the images from GHCR and builds only an
-image it cannot pull. Needs Docker with Compose v2.24 or newer (tested with 2.33 and 5.6) and
-about 2 GB of disk. The quick start listens on 127.0.0.1 only; to use Custode from other devices,
-put it behind HTTPS ([Self-hosting](#self-hosting), [`docs/operations.md`](docs/operations.md)).
+From `git clone` to the sign-in page took **about 1½ minutes** (72 s and 93 s in two runs on
+2026-10-12): `up` pulled the v0.1.0 images from GHCR, while the Postgres and Redis images were
+already in the Docker cache — on a host without them, add their download (about 180 MB). `up`
+builds an image only when it cannot pull it; building everything from source took about 4 minutes
+(253 s, no cached images, a ~90 Mbit/s line). Needs Docker with Compose v2.24 or newer (tested
+with 2.33 and 5.6) and about 2 GB of disk. The quick start listens on 127.0.0.1 only; to use
+Custode from other devices, put it behind HTTPS ([Self-hosting](#self-hosting),
+[`docs/operations.md`](docs/operations.md)).
 
 > **Status: beta — v0.1.0 is the first release; one maintainer.** All modules of roadmap phases
 > 0–9 are built (CalDAV two-way sync, Oura, GDPR export and erasure included); hardening is in
@@ -205,8 +208,9 @@ on :80 for both site blocks. The operator console is a second site on the host n
 `OPS_HOST` (default `ops.localhost`), so the proxy must forward the original `Host` header. The
 api's own port (`127.0.0.1:8080`) bypasses Caddy and is meant for health checks.
 
-**First accounts.** Members register in the app; the first one creates the household. The
-operator console has no sign-up — create the first operator on the host:
+**First accounts.** Members register in the app; the first one then creates the household on the
+account page, the others join it with an invite code. The operator console has no sign-up —
+create the first operator on the host:
 
 ```bash
 docker compose -f docker-compose.prod.yml run --rm api \

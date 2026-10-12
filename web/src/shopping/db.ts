@@ -1,5 +1,7 @@
 import Dexie, { type Table } from "dexie";
 
+import type { MeResponse } from "../api/types.gen";
+
 // Offline store for the shopping list (P3-S3, ARCHITECTURE §8/§10). Mirrors the server: ``lists`` and
 // ``items`` are the cached state; ``outbox`` is the queue of local ops not yet acknowledged; ``meta``
 // holds the sync cursor. Tombstones are removed locally (server deletes are sticky).
@@ -99,4 +101,27 @@ export async function purgeShoppingCache(): Promise<void> {
   await db.transaction("rw", db.tables, async () => {
     await Promise.all(db.tables.map((table) => table.clear()));
   });
+}
+
+// The offline shell's identity. /v1/auth/me cannot answer without a network, and the service
+// worker never caches /v1 (ADR-0078), so a reload in the shop had no session and the shopping page
+// waited for one forever. The last signed-in answer is kept next to the shopping cache it belongs
+// to — so the logout purge above removes it with everything else — and auth/session.ts falls back
+// to it ONLY when the request got no response at all. Any answer from the server wins.
+const SESSION_KEY = "session";
+
+export async function rememberSession(me: MeResponse): Promise<void> {
+  if (writesBlocked) return; // logged out (purge ran) — nothing may be written
+  await db.meta.put({ key: SESSION_KEY, value: JSON.stringify(me) });
+}
+
+// Called with every signed-in /v1/auth/me answer.
+export function signedIn(me: MeResponse): Promise<void> {
+  unblockShoppingWrites();
+  return rememberSession(me);
+}
+
+export async function rememberedSession(): Promise<MeResponse | null> {
+  const stored = (await db.meta.get(SESSION_KEY))?.value;
+  return stored ? (JSON.parse(stored) as MeResponse) : null;
 }

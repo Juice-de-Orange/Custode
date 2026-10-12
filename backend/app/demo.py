@@ -14,7 +14,9 @@ sign-in page. Two rules shape everything here:
 
 The composition root owns this list on purpose: it is the one place that may name every module's
 routes, and a reviewer can read the whole demo surface in one table. Off means off: ``create_app``
-installs neither the middleware nor the ``/v1/demo`` route unless the flag is set.
+installs neither the middleware nor the demo's ``/v1/demo`` route unless the flag is set — a
+normal instance answers ``/v1/demo`` with ``{"enabled": false}`` only, so the web's one question
+per page load is not a 404 in every visitor's console.
 """
 
 from __future__ import annotations
@@ -176,13 +178,20 @@ class DemoModeMiddleware(BaseHTTPMiddleware):
 
 
 demo_router = APIRouter(tags=["demo"])
+no_demo_router = APIRouter(tags=["demo"])
+
+
+@no_demo_router.get("/v1/demo", include_in_schema=False)
+async def no_demo() -> dict[str, object]:
+    """A normal instance: no demo, nothing else to say (``web/src/lib/demo.ts``)."""
+    return {"enabled": False}
 
 
 @demo_router.get("/v1/demo", include_in_schema=False)
 async def demo_info(request: Request) -> dict[str, object]:
     """What the sign-in page and the banner need. Not in the OpenAPI schema (like ``/healthz``):
-    it exists only in demo mode, so the generated client must not grow an operation that 404s on
-    every normal instance. The credentials are public by design — they are on the sign-in page."""
+    its answer differs between demo and normal instances, and the web reads it with a plain
+    ``fetch``. The credentials are public by design — they are on the sign-in page."""
     from app.scripts.seed_demo import DEMO_EMAIL, DEMO_PASSWORD
 
     try:
@@ -201,8 +210,9 @@ async def demo_info(request: Request) -> dict[str, object]:
 
 
 def install_demo_mode(app: FastAPI, settings: Settings) -> None:
-    """Wire demo mode into the app — a no-op unless ``CUSTODE_DEMO_MODE`` is on."""
+    """Wire demo mode into the app; without ``CUSTODE_DEMO_MODE`` only the "no demo" answer."""
     if not settings.demo_mode:
+        app.include_router(no_demo_router)
         return
     app.add_middleware(DemoModeMiddleware, settings=settings)
     app.include_router(demo_router)

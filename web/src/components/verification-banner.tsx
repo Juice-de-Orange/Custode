@@ -5,7 +5,9 @@ import { Button } from "./button";
 type VerificationBannerProps = {
   onResend: () => void;
   pending: boolean;
-  sent: boolean; // after a resend we confirm instead of offering the button again
+  // After a resend its outcome (a message id) replaces the button: "sent" only on success.
+  notice: string | null;
+  mailEnabled: boolean; // me.mail_enabled — false: this server sends no mail at all (no SMTP)
 };
 
 /** Whether the account has an e-mail address left to confirm. A child account has none (it signs
@@ -16,15 +18,16 @@ export function needsEmailVerification(me: { email: string | null; email_verifie
 }
 
 // Shown on the account page while the user's e-mail is unverified (me.email_verified === false).
-export function VerificationBanner({ onResend, pending, sent }: VerificationBannerProps) {
+// Without SMTP there is nothing to resend: say so, instead of a button whose "sent" would be a lie.
+export function VerificationBanner({ onResend, pending, notice, mailEnabled }: VerificationBannerProps) {
   return (
     <div role="status" className="space-y-2 rounded-md border border-bernstein/40 bg-bernstein/5 p-3 text-sm">
       <p>
-        <Trans id="verify.banner.text" />
+        <Trans id={mailEnabled ? "verify.banner.text" : "verify.banner.noMail"} />
       </p>
-      {sent ? (
+      {!mailEnabled ? null : notice ? (
         <p className="text-stein-text">
-          <Trans id="verify.banner.resent" />
+          <Trans id={notice} />
         </p>
       ) : (
         <Button type="button" variant="secondary" disabled={pending} onClick={onResend}>

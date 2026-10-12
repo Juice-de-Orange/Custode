@@ -35,6 +35,17 @@ Fast subset while iterating: `cd backend && uv run pytest tests/test_<module>*.p
 endpoint run `make openapi` and commit `backend/openapi.json` and `web/src/api/`; CI fails on drift
 and on breaking changes (`oasdiff`).
 
+Browser tests (`web/e2e`, Playwright, Chromium) run against a running stack with the built web app,
+because the offline path needs the real service worker:
+
+```bash
+(cd web && npm run build && npx playwright install chromium)
+./setup    # once; writes .env
+COMPOSE_FILE=docker-compose.prod.yml:docker-compose.quickstart.yml:web/e2e/compose.e2e.yml \
+    docker compose up -d --build
+npm --prefix web run e2e    # E2E_BASE_URL=http://localhost:<port> for another port
+```
+
 ### Secret guard
 
 Never commit a `.env`, a token, a real hostname or credentials. The gate runs gitleaks with the
@@ -57,7 +68,8 @@ pip install pre-commit && pre-commit install
 - A bug fix comes with a regression test and, if it taught something, a `docs/BUGLOG.md` entry
   (cause, fix, regression test, lesson).
 - All CI gates green: backend (ruff, mypy strict, import-linter, pytest), web (lint, typecheck,
-  vitest, build, bundle-size, PWA, Lighthouse), contract (OpenAPI drift, oasdiff), security
+  vitest, build, bundle-size, PWA, Lighthouse), e2e (Playwright: offline shopping list), contract
+  (OpenAPI drift, oasdiff), security
   (gitleaks, trivy). A red gate is never "temporarily" disabled.
 - Migrations are expand/contract and reversible; a new table comes with its RLS policy, grants for
   the four roles (`infra/postgres/init.sql` for dev) and a negative test.

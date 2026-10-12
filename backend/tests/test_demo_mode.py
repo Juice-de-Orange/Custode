@@ -187,7 +187,11 @@ async def test_flag_off_changes_nothing(plain_api: AsyncClient) -> None:
     response = await plain_api.post("/v1/auth/register", json={})
     assert response.status_code == 422
     assert "X-Robots-Tag" not in response.headers
-    assert (await plain_api.get("/v1/demo")).status_code == 404
+    # The web asks /v1/demo on every page load; a normal instance answers "no demo" with a 200,
+    # not a 404 that lands in every visitor's console — and without the demo's login.
+    off = await plain_api.get("/v1/demo")
+    assert off.status_code == 200
+    assert off.json() == {"enabled": False}
     # A big body is the handler's business when the demo is off (here: 401, not 413).
     big = await plain_api.post(
         "/v1/notes", content=b"x" * (256 * 1024 + 1), headers={"content-type": "application/json"}

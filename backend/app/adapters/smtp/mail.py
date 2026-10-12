@@ -19,6 +19,8 @@ _log = get_logger("adapters.smtp")
 class SmtpMail:
     """Mail port implementation backed by an SMTP server (see module docstring)."""
 
+    enabled = True
+
     def __init__(self, settings: Settings) -> None:
         self._s = settings
 

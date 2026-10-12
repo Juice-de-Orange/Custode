@@ -1542,6 +1542,7 @@ export const zMeResponse = z.object({
     totp_enabled: z.boolean(),
     recovery_codes_remaining: z.int(),
     email_verified: z.boolean(),
+    mail_enabled: z.boolean(),
     flags: z.record(z.string(), z.boolean())
 });
 

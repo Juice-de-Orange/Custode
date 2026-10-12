@@ -15,6 +15,7 @@
     "check:pwa": "node scripts/check-pwa.mjs",
     "generate:pwa-assets": "pwa-assets-generator",
     "lhci": "lhci collect && lhci assert",
+    "e2e": "playwright test",
     "openapi": "openapi-ts"
   },
   "dependencies": {
@@ -40,6 +41,7 @@
     "@eslint/js": "^9.20.0",
     "@hey-api/openapi-ts": "~0.99.0",
     "@lhci/cli": "^0.15.1",
+    "@playwright/test": "~1.63.0",
     "@tailwindcss/vite": "^4.3.3",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.3",

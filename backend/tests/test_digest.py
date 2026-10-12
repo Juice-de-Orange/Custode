@@ -21,6 +21,8 @@ _NOW = datetime(2026, 6, 29, 7, 0, tzinfo=UTC)
 class FakeMail:
     """Captures every (to, subject, body) the digest sends; always accepts."""
 
+    enabled = True
+
     def __init__(self) -> None:
         self.sent: list[tuple[str, str, str]] = []
 
