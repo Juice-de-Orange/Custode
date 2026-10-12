@@ -21,6 +21,8 @@ Aufgabenteilung (ADR-0018):
     Haushaltsauflösung) mit Fristen, Cron-Zeiten und den erzwingenden Gates.
   - [`patterns.md`](patterns.md) — Pattern-Katalog (E7).
   - [`errors.md`](errors.md) — Fehler-Referenzkatalog (RFC 9457).
+  - [`operations.md`](operations.md) — **Betrieb (Englisch):** Installation, Konfiguration,
+    Proxy, Rechtstexte, Backup, Restore, Update — die Zusammenfassung von ADR-0020/0024.
   - [`NOTIFICATIONS.md`](NOTIFICATIONS.md) — Default-Matrix Benachrichtigungen (Phase 1).
   - [`../CHANGELOG.md`](../CHANGELOG.md) — Änderungshistorie (Keep a Changelog), im Repo-Root.
 

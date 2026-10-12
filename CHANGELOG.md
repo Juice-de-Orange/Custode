@@ -18,6 +18,10 @@ history (June–September 2026, German) is not part of the public repository.
 - The English interface is reachable: the UI follows the browser language (German as fallback)
   and can be pinned per browser under Profile → Language.
 - The account page shows admins the sign-in link for child accounts, with a copy button.
+- `docs/operations.md`: the operator guide in English — install, configure, reverse proxy, legal
+  pages, backup, restore, update (with draining the job queue first), logs and health.
+- The `web` service has the network alias `custode-web`: point your proxy at `custode-web:80`,
+  independent of the Compose project name.
 
 ### Changed
 

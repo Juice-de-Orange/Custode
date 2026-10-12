@@ -119,8 +119,9 @@ docker compose -f docker-compose.dev.yml run --rm api python -m app.scripts.crea
 
 The production stack is `docker-compose.prod.yml`: postgres, redis, api, worker, scheduler and
 `web` (Caddy serving the built PWA and proxying `/v1` to the api). It expects a TLS-terminating
-reverse proxy or tunnel in front and publishes no database ports. Background in ADR-0020 and
-ADR-0024 (German).
+reverse proxy or tunnel in front and publishes no database ports. The full operator guide —
+configuration, proxy, legal pages, backup, restore, update — is
+[`docs/operations.md`](docs/operations.md); this section is the short version.
 
 **Bring-up.** On the host, in the cloned repository:
 
@@ -137,11 +138,14 @@ docker compose -f docker-compose.prod.yml up -d
 
 The database roles are created from the `.env` passwords on the **first** start of an empty
 `pgdata` volume only. Migrations run before the app starts; an upgrade is the same sequence
-after `git pull` (`build` → `run --rm api alembic upgrade head` → `up -d`).
+after `git pull` (`build` → `run --rm api alembic upgrade head` → `up -d`); let the job queue
+run empty and take a backup first — the steps are in [`docs/operations.md`](docs/operations.md#update).
 
 **Attaching your proxy.** `web` deliberately publishes no host port. Either put your reverse
 proxy or tunnel container on the stack's network (`custode_default`) and point it at
-`http://web:80`, or publish the port to the host's loopback with a Compose override
+`http://custode-web:80` — a network alias that does not depend on the Compose project name and,
+unlike the bare service name `web`, cannot be confused with another stack's `web` when the proxy
+joins several networks — or publish the port to the host's loopback with a Compose override
 (`services: {web: {ports: ["127.0.0.1:8081:80"]}}`) and proxy to that. Caddy speaks plain HTTP
 on :80 for both site blocks. The operator console is a second site on the host name in
 `OPS_HOST` (default `ops.localhost`), so the proxy must forward the original `Host` header. The
@@ -157,6 +161,10 @@ docker compose -f docker-compose.prod.yml run --rm api \
 
 It prints a generated password and the TOTP secret exactly once (TOTP is mandatory for the
 console); a re-run for the same address changes nothing.
+
+**Legal pages.** Imprint and privacy policy are yours to provide: put `imprint.md` and
+`privacy.md` into the `legal/` folder (see [`legal/README.md`](legal/README.md)); until you do,
+the app says that the operator has not provided them.
 
 **Without SMTP.** Leave `CUSTODE_SMTP_HOST` empty (the template ships a placeholder host —
 clear it) and the app runs with a null mail adapter: registration and login work, accounts stay

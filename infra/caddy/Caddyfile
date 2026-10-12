@@ -1,6 +1,7 @@
 # Production reverse proxy: static web + API under one origin (ARCHITECTURE: "web
 # Static via Caddy"). TLS is terminated upstream by the operator's TLS-terminating proxy
-# or tunnel (→ http://web:80 in the Compose network), so Caddy serves plain HTTP on :80.
+# or tunnel (→ http://custode-web:80 in the Compose network, docs/operations.md), so Caddy
+# serves plain HTTP on :80.
 # Dev does NOT use this — the web runs via `npm run dev` and proxies /v1 to the API.
 
 # PWA cache policy (ADR-0078), shared by both site blocks: hashed /assets/* never change →
