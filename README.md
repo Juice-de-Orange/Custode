@@ -49,7 +49,7 @@ HTTPS ([Self-hosting](#self-hosting), [`docs/operations.md`](docs/operations.md)
 > quick-capture with an LLM, hardware authenticators (a virtual one was used), operation behind a
 > TLS-terminating proxy. Issues and pull requests are welcome.
 >
-> Built with heavy AI assistance (Claude Code); designed, reviewed, tested and run by me.
+> Built with AI assistance.
 
 **Languages.** The interface ships in English and German: it follows the browser language, falls
 back to English, and can be pinned per browser under Profile → Language. This README,
