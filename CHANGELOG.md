@@ -29,6 +29,9 @@ history (June–September 2026, German) is not part of the public repository.
   `.env.prod.example`, `infra/postgres/init.prod.sh`, `infra/caddy/Caddyfile`); the deploy job
   is not part of the public CI.
 - Problem-type URIs point at the error catalogue in this repository.
+- Web: React 19.3. The API client is generated into `web/src/api/client` and `web/src/api/core`
+  by `@hey-api/openapi-ts` 0.99 instead of being imported from `@hey-api/client-fetch`. Bundle
+  budgets: member app 231 kB, operator console 147 kB (gzip, eager JS + CSS).
 
 ### Fixed
 
