@@ -3424,7 +3424,7 @@
           "calendar"
         ],
         "summary": "List Events",
-        "description": "Visible occurrences (household-layer + own personal), optionally within from/to. Recurring\nseries are expanded into concrete occurrences.",
+        "description": "Visible occurrences (household-layer + own personal), optionally within from/to. Recurring\nseries are expanded into concrete occurrences. from/to must carry an offset (422 otherwise): a\nnaive bound cannot be compared with the stored UTC instants.",
         "operationId": "list_events_v1_calendar_events_get",
         "parameters": [
           {
@@ -4325,7 +4325,7 @@
           "scheduling"
         ],
         "summary": "Suggest Slots",
-        "description": "Suggest up to ``limit`` conflict-free slots of ``duration_min`` minutes within the window\n(defaults: now .. now+7 days) and the daily working hours ``[day_start, day_end]`` (UTC).",
+        "description": "Suggest up to ``limit`` conflict-free slots of ``duration_min`` minutes within the window\n(defaults: now .. now+7 days) and the daily working hours ``[day_start, day_end]`` (UTC).\nfrom/to must carry an offset (422 otherwise), like the calendar's own range.",
         "operationId": "suggest_slots_v1_scheduling_slots_get",
         "parameters": [
           {
