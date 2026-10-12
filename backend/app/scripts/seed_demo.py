@@ -632,7 +632,9 @@ async def seed_demo_admin(lang: str = "de") -> uuid.UUID | None:
 
     print(f"seed-demo: created the demo household ({lang})")
     print(f"  E-mail:     {DEMO_EMAIL}")
-    print(f"  Password:   {DEMO_PASSWORD}")
+    # The value is public by design (docs/demo.md); the log only points at it, so no password
+    # ever reaches a log, even this deliberately known one.
+    print("  Password:   the demo password from docs/demo.md (DEMO_PASSWORD in this script)")
     print(f"  Household:  {content.household} ({household_id})")
     print(f"  User id:    {admin_id}")
     print(f"  Members:    {', '.join(adults)} (same password), child {DEMO_CHILD_NAME}")
