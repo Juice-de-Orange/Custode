@@ -1,7 +1,7 @@
 // Interface language. Two catalogs ship (German, English); which one is active is decided once at
 // load: an explicit choice stored in this browser wins, otherwise the browser's language list,
-// otherwise German (the language the product is designed in). The choice is per browser, like the
-// theme — it is a display preference, not account data.
+// otherwise English (the language most visitors without a German or English browser read). The
+// choice is per browser, like the theme — it is a display preference, not account data.
 export type Locale = "de" | "en";
 
 export const LOCALES: readonly Locale[] = ["de", "en"];
@@ -31,7 +31,7 @@ export function setLocalePref(locale: Locale | null): void {
   }
 }
 
-/** Pure decision: stored choice, else the first browser language we have a catalog for, else de. */
+/** Pure decision: stored choice, else the first browser language we have a catalog for, else en. */
 export function resolveLocale(stored: string | null, browser: readonly string[]): Locale {
   const explicit = asLocale(stored);
   if (explicit) return explicit;
@@ -39,7 +39,7 @@ export function resolveLocale(stored: string | null, browser: readonly string[])
     const base = asLocale(tag.toLowerCase().split("-")[0]);
     if (base) return base;
   }
-  return "de";
+  return "en";
 }
 
 function browserLanguages(): readonly string[] {

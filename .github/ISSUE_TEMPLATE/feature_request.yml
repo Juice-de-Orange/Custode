@@ -13,7 +13,7 @@ body:
     id: proposal
     attributes:
       label: Proposed solution
-      description: Which module would it live in, and which KONFIG section or ADR would change? Concept first, then code.
+      description: What would you like Custode to do? Mockups, examples from other apps and the module it belongs to all help. (Bigger changes start as a concept or ADR update — see CONTRIBUTING.md.)
     validations:
       required: true
   - type: checkboxes

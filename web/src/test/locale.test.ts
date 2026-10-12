@@ -27,9 +27,9 @@ describe("resolveLocale", () => {
     expect(resolveLocale(null, ["fr-FR", "en-US", "de"])).toBe("en");
   });
 
-  test("falls back to German — for no match, no list, and a stored value that is not a locale", () => {
-    expect(resolveLocale(null, ["fr-FR", "it"])).toBe("de");
-    expect(resolveLocale(null, [])).toBe("de");
+  test("falls back to English — for no match, no list, and a stored value that is not a locale", () => {
+    expect(resolveLocale(null, ["fr-FR", "it"])).toBe("en");
+    expect(resolveLocale(null, [])).toBe("en");
     expect(resolveLocale("klingon", ["en-US"])).toBe("en"); // garbage is ignored, not obeyed
   });
 });
