@@ -32,7 +32,7 @@ Want to look around first? `docker compose run --rm seed-demo` adds an invented,
 household (sign in as `admin@custode.local` / `custode-admin-demo` — a published password, so only
 on a trial instance).
 
-From `git clone` to the sign-in page took **about 1½ minutes** (72 s and 93 s in two runs on
+From `git clone` to the sign-in page took **1 to 1½ minutes** (66, 72 and 93 s in three runs on
 2026-10-12): `up` pulled the v0.1.0 images from GHCR, while the Postgres and Redis images were
 already in the Docker cache — on a host without them, add their download (about 180 MB). `up`
 builds an image only when it cannot pull it; building everything from source took about 4 minutes
