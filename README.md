@@ -71,7 +71,7 @@ release on 2026-10-12:
 | | Custode | [Grocy](https://grocy.info) | [Mealie](https://mealie.io) | [Tandoor](https://tandoor.dev) | [KitchenOwl](https://kitchenowl.org) |
 |---|---|---|---|---|---|
 | Licence | AGPL-3.0 | MIT | AGPL-3.0 | AGPL-3.0 + Commons Clause | AGPL-3.0 |
-| Since / latest release | 2026 / v0.1.0 (beta) | 2017 / v4.7.1 | 2020 / v3.28.0 | 2019 / 2.6.15 | 2021 / v0.7.10 (alpha) |
+| Since / latest release | 2026 / v0.1.1 (beta) | 2017 / v4.7.1 | 2020 / v3.28.0 | 2019 / 2.6.15 | 2021 / v0.7.10 (alpha) |
 | Recipe import from a URL | yes (schema.org) | add-on only | yes, plus AI and video import | yes, plus AI import | yes |
 | Import from other apps | – | – | 9 apps | ~22 apps | – |
 | Meal planner | yes, with auto-fill | yes | yes | yes | yes |

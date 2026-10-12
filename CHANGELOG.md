@@ -6,6 +6,11 @@ history (June–September 2026, German) is not part of the public repository.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-13
+
+Fixes from the first-visitor check: the offline shopping list now works offline end to end, an
+instance without SMTP says so instead of claiming to send mail, and signing in lands on Today.
+
 ### Fixed
 
 - The shopping list works offline as promised: items added or checked off without a connection are
@@ -17,6 +22,17 @@ history (June–September 2026, German) is not part of the public repository.
   `503 mail_unavailable`.
 - Signing in lands a household member on Today instead of the account page.
 - `/v1/demo` answers `{"enabled": false}` on a normal instance instead of a 404 on every page load.
+
+### Changed
+
+- README: the first run says where the household is created (the account page after sign-up, or
+  join one with an invite code), and the quick-start time is measured with the published images.
+- The issue chooser links to GitHub Discussions for questions and ideas.
+- CI has an `e2e` job: a Playwright test of the offline shopping list (`web/e2e`) against the
+  quick-start stack built from the commit; `CONTRIBUTING.md` says how to run it locally.
+- Dependencies: FastAPI 0.143, Pydantic 2.14, asyncpg 0.32, OpenTelemetry 1.45.1 and
+  uuid-utils 1.0 in the backend; Lingui 6 in the web app. Development only: jsdom 30,
+  jest-dom 7, ruff 0.17, mypy 2.4.
 
 ## [0.1.0] - 2026-10-12
 
