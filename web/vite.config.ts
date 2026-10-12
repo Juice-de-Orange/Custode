@@ -5,7 +5,7 @@ import react from "@vitejs/plugin-react";
 import { defineConfig, type Plugin } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 
-import { messages as deMessages } from "./src/i18n/locales/de";
+import { messages as enMessages } from "./src/i18n/locales/en";
 import { BRAND_NAME } from "./src/lib/brand";
 
 // vite-plugin-pwa injects the manifest <link> into EVERY rollup HTML entry, but the operator
@@ -43,8 +43,8 @@ export default defineConfig({
         short_name: BRAND_NAME,
         // Same brand-free product description as the index.html meta.
         description:
-          "Die ruhige Haushaltsplattform: Rezepte, Einkauf, Aufgaben, Kalender, Notizen und mehr — durchdacht und an einem Ort.",
-        lang: "de",
+          "The calm household platform: recipes, shopping, chores, calendars, notes and more — thought through and in one place.",
+        lang: "en",
         start_url: "/today",
         scope: "/",
         display: "standalone",
@@ -71,39 +71,40 @@ export default defineConfig({
             sizes: "780x1688",
             type: "image/png",
             form_factor: "narrow",
-            label: "Heute-Übersicht",
+            label: "Today overview",
           },
           {
             src: "/screenshots/mobile-shopping.png",
             sizes: "780x1688",
             type: "image/png",
             form_factor: "narrow",
-            label: "Einkaufsliste",
+            label: "Shopping list",
           },
           {
             src: "/screenshots/wide-today.png",
             sizes: "1280x800",
             type: "image/png",
             form_factor: "wide",
-            label: "Heute-Übersicht",
+            label: "Today overview",
           },
         ],
-        // Long-press/right-click jump list on the installed icon. Labels come from the German
+        // Long-press/right-click jump list on the installed icon. Labels come from the English
         // Lingui catalog at build time so they track the in-app nav wording; the manifest is
-        // one static file (lang "de") — per-locale manifests are out of scope (ADR-0078).
+        // one static file (lang "en", the UI's fallback language) — per-locale manifests are out
+        // of scope (ADR-0078).
         shortcuts: [
           {
-            name: deMessages["nav.today"],
+            name: enMessages["nav.today"],
             url: "/today",
             icons: [{ src: "/pwa-192x192.png", sizes: "192x192" }],
           },
           {
-            name: deMessages["nav.shopping"],
+            name: enMessages["nav.shopping"],
             url: "/shopping",
             icons: [{ src: "/pwa-192x192.png", sizes: "192x192" }],
           },
           {
-            name: deMessages["nav.tasks"],
+            name: enMessages["nav.tasks"],
             url: "/tasks",
             icons: [{ src: "/pwa-192x192.png", sizes: "192x192" }],
           },
