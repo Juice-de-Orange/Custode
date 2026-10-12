@@ -25,6 +25,9 @@ history (June–September 2026, German) is not part of the public repository.
 
 ### Changed
 
+- README: the tagline says "self-hosted" instead of "EU-hosted" (there is no hosted service);
+  quick-capture is described as it works (deterministic parsing, an optional local LLM enriches
+  free text); a "Known limitations" section.
 - Imprint and privacy policy come from the operator: Markdown files in the `legal/` folder
   (`imprint.md`, `privacy.md`, optionally per language), served by the `web` container under
   `/legal/`. Without them the pages say that the operator has not provided them; the draft texts

@@ -1,6 +1,6 @@
 # Custode
 
-**The operating system for your household — one app, EU-hosted, ad-free, open source.**
+**The operating system for your household — one app, self-hosted, ad-free, open source.**
 
 Custode is a household platform: recipes, meal planner, shopping list, personal and household
 calendars with CalDAV sync, household tasks with a points economy and an internal marketplace, a
@@ -59,8 +59,9 @@ rights built in from day one (export, erasure, purge jobs, consent for health da
 - **Messaging, guides, notes, comments** — letters with read receipts, a household knowledge base
   with German full-text search, notes with version history, generic object links.
 - **Wearables and weather** — Oura OAuth with Art. 9 consent and raw-data retention, Open-Meteo.
-- **Quick-capture** — "Zuruf": dictate or type, an LLM adapter turns it into tasks, notes or
-  shopping items via the normal sync path.
+- **Quick-capture** — "Zuruf": type a line (or use your keyboard's dictation) and it becomes
+  tasks, notes or shopping items via the normal sync path; the structure is parsed
+  deterministically, an optional local LLM (Ollama) only enriches free-text fields.
 - **Accounts** — passkeys (WebAuthn), TOTP, child accounts with PIN, invite codes, household
   transparency log, operator console on its own subdomain with separate bearer auth.
 - **GDPR** — export, household exit, account deletion with nightly purge, household dissolution
@@ -197,6 +198,22 @@ docker compose -f docker-compose.prod.yml up -d
 The dump carries no roles — they come from the init script, which is why the restore starts
 postgres on an empty volume first.
 
+## Known limitations
+
+- **Keys.** There is no rotation path for `CUSTODE_CRYPTO_KEY` (#7). The vault's household key
+  is not rotated when a member leaves, and the household recovery code is a shared secret that
+  cannot be changed; a member joins the vault with that code (ADR-0067 addendum). Vault data that
+  an older version's second "setup" already overwrote is not repaired.
+- **Mail.** Without SMTP nobody can reset a forgotten password.
+- **Not exercised by the maintainers:** real SMTP delivery, Oura, quick-capture with an LLM,
+  hardware authenticators, operation behind a real TLS-terminating proxy.
+- **Configuration.** The web app's brand name is a build constant (`web/src/lib/brand.ts`), not
+  the `CUSTODE_BRAND_NAME` setting the backend reads. Unknown `CUSTODE_*` variables are ignored
+  without a warning, so a typo in `.env` goes unnoticed. The database roles are created only on
+  the first start of an empty database volume.
+- **Dev stack.** Fixed host ports on all interfaces and a hard-coded Vite proxy target (#41).
+- **Scope.** Google CalDAV is not supported (#9); the Android app has not started (#11).
+
 ## Development
 
 ```bash
@@ -230,7 +247,7 @@ volume ([ADR-0033](docs/adr/0033-blob-storage-photos.md)); no object store is ne
 
 The codebase was built in AI-assisted sessions working against `CLAUDE.md` and the concept
 documents, with a definition of done per unit, a bug log with cause, fix, regression test and
-lesson ([`docs/BUGLOG.md`](docs/BUGLOG.md)), and 80+ ADRs. German comments and commit messages in
+lesson ([`docs/BUGLOG.md`](docs/BUGLOG.md)), and 70+ ADRs. German comments and commit messages in
 the engineering docs are a trace of that workflow.
 
 ## Licence
