@@ -43,9 +43,17 @@ const ASSETS = join(DIST, "assets");
 // Kinder-Anmeldelink, Sprachwahl) sind nutzerseitiger Text in BEIDEN Katalogen, die beide eager
 // geladen werden: +1,2 kB → 220,8. 225 lässt ~2 % für den nächsten Satz Texte; mehr Luft bringt
 // erst ein lazy geladener Zweitkatalog (nur die aktive Sprache im Initial-Payload).
+//
+// 2026-10-11, member von 225 auf 231, ops von 145 auf 147 (Entscheidung vor v0.1.0, #33):
+// React 19.2 → 19.3 bringt +8,6 kB in den geteilten Chunk (220,8 → 229,4 / 136,4 → 145,0).
+// @hey-api/openapi-ts 0.64 → 0.99 (Sicherheitshinweis GHSA-hhx9-57xq-r5rw) erzeugt den
+// Fetch-Client jetzt selbst unter src/api/client + src/api/core statt ihn aus
+// @hey-api/client-fetch zu importieren: +1,1 kB (→ 230,5 / 146,1). Freigegeben waren 230 kB für
+// React allein; beide Budgets stehen jetzt bei Messwert + ~0,5–1 kB. Mehr Luft bringt erst der
+// lazy geladene Zweitkatalog (s. o.).
 const ENTRIES = [
-  { html: "index.html", entryChunk: "main", label: "Member-App (index.html)", budgetKb: 225 },
-  { html: "index-ops.html", entryChunk: "ops", label: "Operator-Konsole (index-ops.html)", budgetKb: 145 },
+  { html: "index.html", entryChunk: "main", label: "Member-App (index.html)", budgetKb: 231 },
+  { html: "index-ops.html", entryChunk: "ops", label: "Operator-Konsole (index-ops.html)", budgetKb: 147 },
 ];
 // A lazy chunk that must never become eager. Matched by filename prefix (vite names it by package).
 const LAZY_REQUIRED = [{ prefix: "libsodium", label: "libsodium-wasm" }];

@@ -1,6 +1,6 @@
-import { formDataBodySerializer } from "@hey-api/client-fetch";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { formDataBodySerializer } from "../api/client";
 import { client } from "../api/client.gen";
 import type {
   AttachmentResponse,

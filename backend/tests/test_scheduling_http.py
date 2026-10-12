@@ -220,3 +220,31 @@ async def test_invalid_hours_rejected(app: FastAPI) -> None:
             params={"day_start": 18, "day_end": 9},
         )
         assert resp.status_code == 422
+
+
+@pytest.mark.parametrize(
+    "params",
+    [
+        {"from": "2026-07-05T00:00:00", "to": "2026-07-05T20:00:00"},
+        {"from": "2026-07-05T00:00:00"},
+        {"from": "2026-07-05T00:00:00+00:00", "to": "2026-07-05T20:00:00"},
+    ],
+)
+async def test_window_without_offset_is_422_not_500(app: FastAPI, params: dict[str, str]) -> None:
+    # A naive bound used to meet the tz-aware busy intervals (or the other bound) in a comparison
+    # (TypeError -> 500). Don't re-raise app errors here, so a regression shows as the 500 it was.
+    transport = ASGITransport(app=app, raise_app_exceptions=False)
+    async with AsyncClient(transport=transport, base_url="http://test") as admin:
+        await _admin_household(admin)
+        await _create_event(
+            admin,
+            title="Meeting",
+            starts_at="2026-07-05T09:00:00+00:00",
+            ends_at="2026-07-05T11:00:00+00:00",
+            busy=True,
+        )
+        resp = await admin.get("/v1/scheduling/slots", params=params)
+        assert resp.status_code == 422, resp.text
+        assert resp.headers["content-type"].startswith("application/problem+json")
+        assert resp.json()["type"].endswith("#validation")
+        assert {e["type"] for e in resp.json()["errors"]} == {"timezone_aware"}
