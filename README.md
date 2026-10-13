@@ -3,6 +3,9 @@
 **One self-hosted app for the shared life of a household — meals, shopping, chores, calendars and
 passwords, for everyone who lives there.**
 
+**[Try the live demo](https://custode-demo.maxlworks.com)** — a shared demo household with the login
+filled in, reset every hour. Please don't enter personal data.
+
 <p align="center">
   <img src="docs/images/hero.gif" alt="Custode: plan a dinner from a recipe, put its ingredients on the shared shopping list, tick a chore and earn its points" width="720">
 </p>
