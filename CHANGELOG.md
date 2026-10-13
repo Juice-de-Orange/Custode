@@ -6,6 +6,11 @@ history (June–September 2026, German) is not part of the public repository.
 
 ## [Unreleased]
 
+### Changed
+
+- Bundle budget of the member app raised from 231 to 235 kB (gzip, eager JS + CSS): v0.1.1 left 1 byte,
+  which blocked every visible dependency update.
+
 ## [0.1.1] - 2026-10-13
 
 Fixes from the first-visitor check: the offline shopping list now works offline end to end, an

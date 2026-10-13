@@ -51,8 +51,13 @@ const ASSETS = join(DIST, "assets");
 // @hey-api/client-fetch zu importieren: +1,1 kB (→ 230,5 / 146,1). Freigegeben waren 230 kB für
 // React allein; beide Budgets stehen jetzt bei Messwert + ~0,5–1 kB. Mehr Luft bringt erst der
 // lazy geladene Zweitkatalog (s. o.).
+//
+// 2026-10-13, member von 231 auf 235 (Entscheidung des Maintainers): nach dem Offline-Fix der
+// Einkaufsliste (v0.1.1) stand die Member-App bei 231,0 kB — 1 Byte Luft. Damit blieb jedes
+// sichtbare Abhängigkeits-Update hängen (lucide-react, @radix-ui/react-slot). 235 lässt Platz für
+// Sicherheits- und Bugfix-Updates; der lazy geladene Zweitkatalog bleibt der Weg zu mehr Luft.
 const ENTRIES = [
-  { html: "index.html", entryChunk: "main", label: "Member-App (index.html)", budgetKb: 231 },
+  { html: "index.html", entryChunk: "main", label: "Member-App (index.html)", budgetKb: 235 },
   { html: "index-ops.html", entryChunk: "ops", label: "Operator-Konsole (index-ops.html)", budgetKb: 147 },
 ];
 // A lazy chunk that must never become eager. Matched by filename prefix (vite names it by package).
