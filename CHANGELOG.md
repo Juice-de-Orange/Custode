@@ -10,6 +10,9 @@ history (June–September 2026, German) is not part of the public repository.
 
 - Bundle budget of the member app raised from 231 to 235 kB (gzip, eager JS + CSS): v0.1.1 left 1 byte,
   which blocked every visible dependency update.
+- README: "Why" and "How it compares" come before the quick start, a badge row (CI, release,
+  licence) sits under the hero, the status box names v0.1.1, the two development sections are one,
+  and issue references are links.
 
 ## [0.1.1] - 2026-10-13
 
