@@ -21,47 +21,17 @@ filled in, reset every hour. Please don't enter personal data.
 - **Own the data:** one Docker Compose stack on your hardware, households separated by Postgres
   row-level security, GDPR export and erasure built in, no ads, AGPL-3.0.
 
-## Quick start
+[![CI](https://github.com/Juice-de-Orange/Custode/actions/workflows/ci.yml/badge.svg)](https://github.com/Juice-de-Orange/Custode/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/Juice-de-Orange/Custode)](https://github.com/Juice-de-Orange/Custode/releases/latest)
+[![Licence: AGPL-3.0](https://img.shields.io/badge/licence-AGPL--3.0-blue.svg)](LICENSE)
 
-```bash
-git clone https://github.com/Juice-de-Orange/Custode.git && cd Custode
-./setup                # writes .env with generated secrets — nothing to edit
-docker compose up -d   # pulls or builds the images, migrates the database, starts everything
-```
+## Why
 
-Open <http://localhost:8080>, sign up, then create your household on the account page that
-follows (or join one with an invite code).
-Want to look around first? `docker compose run --rm seed-demo` adds an invented, lived-in
-household (sign in as `admin@custode.local` / `custode-admin-demo` — a published password, so only
-on a trial instance).
-
-From `git clone` to the sign-in page took **1 to 1½ minutes** (66, 72 and 93 s in three runs on
-2026-10-12): `up` pulled the v0.1.0 images from GHCR, while the Postgres and Redis images were
-already in the Docker cache — on a host without them, add their download (about 180 MB). `up`
-builds an image only when it cannot pull it; building everything from source took about 4 minutes
-(253 s, no cached images, a ~90 Mbit/s line). Needs Docker with Compose v2.24 or newer (tested
-with 2.33 and 5.6) and about 2 GB of disk. The quick start listens on 127.0.0.1 only; to use
-Custode from other devices, put it behind HTTPS ([Self-hosting](#self-hosting),
-[`docs/operations.md`](docs/operations.md)).
-
-> **Status: beta — v0.1.0 is the first release; one maintainer.** All modules of roadmap phases
-> 0–9 are built (CalDAV two-way sync, Oura, GDPR export and erasure included); hardening is in
-> progress; the Android app has not started. The maintainer runs one instance for a private
-> household; there is no hosted service. Two functional checks ran against a fresh clone — the
-> README followed literally, the PWA used in a real browser — covering registration with mail,
-> households with a second member and a child, tasks, rooms, shopping, calendar (CalDAV against
-> Radicale, ICS), notes, recipes, guides, quick-capture, letters, vault, passkeys and TOTP, tenant
-> isolation, GDPR export, the operator console, backup and restore. **Not covered:** real SMTP
-> delivery, Oura, quick-capture with an LLM, hardware authenticators (a virtual one was used),
-> operation behind a TLS-terminating proxy. Issues and pull requests are welcome.
->
-> Built with AI assistance.
-
-**Languages.** The interface ships in English and German: it follows the browser language, falls
-back to English, and can be pinned per browser under Profile → Language. This README,
-[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/operations.md`](docs/operations.md) and
-everything an operator needs are English; the concept documents in [`KONFIG/`](KONFIG/) and the
-engineering notes in [`docs/`](docs/) (ADRs, module notes, bug log) are German by design.
+Households run on a dozen apps that do not talk to each other, sell the data, or both. Custode
+puts the shared life of a household — cooking, shopping, chores, appointments, credentials,
+messages, documentation — behind **one** tenant boundary that the database enforces, with a fair
+economy for chores (a double-entry points ledger, not a leaderboard), without ads and with GDPR
+rights built in from day one (export, erasure, purge jobs, consent for health data).
 
 ## How it compares
 
@@ -96,13 +66,47 @@ feed. Mealie and Tandoor have hundreds of contributors and import recipes from f
 and apps. KitchenOwl has official native apps and expense splitting. All four have many more
 translations, SSO, a larger community and years of releases; Custode has none of that yet.
 
-## Why
+## Quick start
 
-Households run on a dozen apps that do not talk to each other, sell the data, or both. Custode
-puts the shared life of a household — cooking, shopping, chores, appointments, credentials,
-messages, documentation — behind **one** tenant boundary that the database enforces, with a fair
-economy for chores (a double-entry points ledger, not a leaderboard), without ads and with GDPR
-rights built in from day one (export, erasure, purge jobs, consent for health data).
+```bash
+git clone https://github.com/Juice-de-Orange/Custode.git && cd Custode
+./setup                # writes .env with generated secrets — nothing to edit
+docker compose up -d   # pulls or builds the images, migrates the database, starts everything
+```
+
+Open <http://localhost:8080>, sign up, then create your household on the account page that
+follows (or join one with an invite code).
+Want to look around first? `docker compose run --rm seed-demo` adds an invented, lived-in
+household (sign in as `admin@custode.local` / `custode-admin-demo` — a published password, so only
+on a trial instance).
+
+From `git clone` to the sign-in page took **1 to 1½ minutes** (66, 72 and 93 s in three runs on
+2026-10-12): `up` pulled the v0.1.0 images from GHCR, while the Postgres and Redis images were
+already in the Docker cache — on a host without them, add their download (about 180 MB). `up`
+builds an image only when it cannot pull it; building everything from source took about 4 minutes
+(253 s, no cached images, a ~90 Mbit/s line). Needs Docker with Compose v2.24 or newer (tested
+with 2.33 and 5.6) and about 2 GB of disk. The quick start listens on 127.0.0.1 only; to use
+Custode from other devices, put it behind HTTPS ([Self-hosting](#self-hosting),
+[`docs/operations.md`](docs/operations.md)).
+
+> **Status: beta — current release v0.1.1; one maintainer.** All modules of roadmap phases
+> 0–9 are built (CalDAV two-way sync, Oura, GDPR export and erasure included); hardening is in
+> progress; the Android app has not started. The maintainer runs one instance for a private
+> household; there is no hosted service. Two functional checks ran against a fresh clone — the
+> README followed literally, the PWA used in a real browser — covering registration with mail,
+> households with a second member and a child, tasks, rooms, shopping, calendar (CalDAV against
+> Radicale, ICS), notes, recipes, guides, quick-capture, letters, vault, passkeys and TOTP, tenant
+> isolation, GDPR export, the operator console, backup and restore. **Not covered:** real SMTP
+> delivery, Oura, quick-capture with an LLM, hardware authenticators (a virtual one was used),
+> operation behind a TLS-terminating proxy. Issues and pull requests are welcome.
+>
+> Built with AI assistance.
+
+**Languages.** The interface ships in English and German: it follows the browser language, falls
+back to English, and can be pinned per browser under Profile → Language. This README,
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/operations.md`](docs/operations.md) and
+everything an operator needs are English; the concept documents in [`KONFIG/`](KONFIG/) and the
+engineering notes in [`docs/`](docs/) (ADRs, module notes, bug log) are German by design.
 
 ## Features
 
@@ -148,33 +152,6 @@ enforced in CI by 27 import-linter contracts. Every tenant boundary is a Postgre
 generated TypeScript client and zod schemas (drift gate + `oasdiff` on PRs). Details:
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) (English), [`KONFIG/ARCHITECTURE.md`](KONFIG/ARCHITECTURE.md)
 (full, German), [`docs/adr/`](docs/adr/) (ADR index), [`docs/MODULES/`](docs/MODULES/).
-
-## Development stack
-
-For working on the code — not for running it. Requirements: [uv](https://docs.astral.sh/uv/),
-Node 22, GNU Make, Docker with Compose v2. No system Python is needed: uv installs the interpreter
-pinned in `backend/.python-version` (3.13, the same version the container image runs;
-`requires-python` is `>=3.12`, but 3.13 is what CI and the image exercise).
-
-```bash
-git clone https://github.com/Juice-de-Orange/Custode.git
-cd Custode
-cp .env.example .env     # dev-safe defaults
-make dev                 # api, worker, scheduler, postgres 18, redis, mailpit, radicale
-make migrate             # alembic upgrade head
-make seed-demo           # an invented, lived-in demo household (dev only)
-make install             # uv sync (backend) + npm ci (web)
-make web                 # Vite dev server on http://localhost:5173 (proxies /v1 to the API)
-```
-
-Log in with the demo account printed by `make seed-demo`. Mail lands in mailpit
-(http://localhost:8025). The dev stack is for a developer machine only — it publishes its
-database ports and uses fixed passwords. An operator account for the operator console is created
-the same way as in production (it prints a password and the TOTP secret once):
-
-```bash
-docker compose -f docker-compose.dev.yml run --rm api python -m app.scripts.create_operator you@example.org
-```
 
 ## Self-hosting
 
@@ -262,7 +239,7 @@ postgres on an empty volume first.
 
 - **Quick start.** It listens on `127.0.0.1` only and uses `Secure` cookies, which browsers accept
   on `localhost`; from another device the sign-in only works behind HTTPS.
-- **Keys.** There is no rotation path for `CUSTODE_CRYPTO_KEY` (#7). The vault's household key
+- **Keys.** There is no rotation path for `CUSTODE_CRYPTO_KEY` ([#7](https://github.com/Juice-de-Orange/Custode/issues/7)). The vault's household key
   is not rotated when a member leaves, and the household recovery code is a shared secret that
   cannot be changed; a member joins the vault with that code (ADR-0067 addendum). Vault data that
   an older version's second "setup" already overwrote is not repaired.
@@ -273,10 +250,37 @@ postgres on an empty volume first.
   the `CUSTODE_BRAND_NAME` setting the backend reads. Unknown `CUSTODE_*` variables are ignored
   without a warning, so a typo in `.env` goes unnoticed. The database roles are created only on
   the first start of an empty database volume.
-- **Dev stack.** Fixed host ports on all interfaces and a hard-coded Vite proxy target (#41).
-- **Scope.** Google CalDAV is not supported (#9); the Android app has not started (#11).
+- **Dev stack.** Fixed host ports on all interfaces and a hard-coded Vite proxy target ([#41](https://github.com/Juice-de-Orange/Custode/issues/41)).
+- **Scope.** Google CalDAV is not supported ([#9](https://github.com/Juice-de-Orange/Custode/issues/9)); the Android app has not started ([#11](https://github.com/Juice-de-Orange/Custode/issues/11)).
 
 ## Development
+
+For working on the code — not for running it. Requirements: [uv](https://docs.astral.sh/uv/),
+Node 22, GNU Make, Docker with Compose v2. No system Python is needed: uv installs the interpreter
+pinned in `backend/.python-version` (3.13, the same version the container image runs;
+`requires-python` is `>=3.12`, but 3.13 is what CI and the image exercise).
+
+```bash
+git clone https://github.com/Juice-de-Orange/Custode.git
+cd Custode
+cp .env.example .env     # dev-safe defaults
+make dev                 # api, worker, scheduler, postgres 18, redis, mailpit, radicale
+make migrate             # alembic upgrade head
+make seed-demo           # an invented, lived-in demo household (dev only)
+make install             # uv sync (backend) + npm ci (web)
+make web                 # Vite dev server on http://localhost:5173 (proxies /v1 to the API)
+```
+
+Log in with the demo account printed by `make seed-demo`. Mail lands in mailpit
+(http://localhost:8025). The dev stack is for a developer machine only — it publishes its
+database ports and uses fixed passwords. An operator account for the operator console is created
+the same way as in production (it prints a password and the TOTP secret once):
+
+```bash
+docker compose -f docker-compose.dev.yml run --rm api python -m app.scripts.create_operator you@example.org
+```
+
+Checks and code generation:
 
 ```bash
 make lint          # ruff, mypy --strict, eslint, tsc
@@ -289,7 +293,10 @@ make format
 The backend suite needs Docker and takes 10–30 minutes on a laptop; CI runs it in about 4
 minutes. Gates are listed in [`CLAUDE.md`](CLAUDE.md), which is the binding working instruction
 for humans and AI-assisted sessions alike — module boundaries, definition of done, the review
-rules this codebase learned the hard way. See [`CONTRIBUTING.md`](CONTRIBUTING.md).
+rules this codebase learned the hard way. The bug log ([`docs/BUGLOG.md`](docs/BUGLOG.md)) records
+cause, fix, regression test and lesson per bug, and 70+ ADRs ([`docs/adr/`](docs/adr/)) record the
+design decisions; German comments and commit messages in the engineering docs come from that
+history. See [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## Tech stack
 
@@ -304,13 +311,6 @@ Custode is a self-hostable product; every external service is optional and broug
 an SMTP account, an Oura OAuth application (for wearables), an Open-Meteo plan (the free API is for
 non-commercial use), and an LLM endpoint for quick-capture. Uploaded files are stored on a local
 volume ([ADR-0033](docs/adr/0033-blob-storage-photos.md)); no object store is needed.
-
-## Built with
-
-AI-assisted sessions (see the status box above) working against `CLAUDE.md` and the concept
-documents, with a definition of done per unit, a bug log with cause, fix, regression test and
-lesson ([`docs/BUGLOG.md`](docs/BUGLOG.md)), and 70+ ADRs. German comments and commit messages in
-the engineering docs are a trace of that workflow.
 
 ## Licence
 
