@@ -92,9 +92,12 @@ describe("DemoBanner", () => {
         "Demo — die Daten werden stündlich zurückgesetzt. Bitte keine persönlichen Daten eingeben.",
       ),
     ).toBeInTheDocument();
-    expect(document.head.querySelector('meta[name="robots"]')).toHaveAttribute(
-      "content",
-      "noindex, nofollow",
+    // The banner adds the tag in an effect, which can run after the text is already on screen.
+    await waitFor(() =>
+      expect(document.head.querySelector('meta[name="robots"]')).toHaveAttribute(
+        "content",
+        "noindex, nofollow",
+      ),
     );
     expect(await axe(container)).toHaveNoViolations();
   });
