@@ -3,9 +3,11 @@ resolution via recipes.api, free text, clear, and Monday normalisation. Skipped 
 
 from __future__ import annotations
 
+import asyncio
 import os
 import uuid
 from collections.abc import AsyncIterator
+from datetime import date
 
 import asyncpg
 import pytest
@@ -135,6 +137,38 @@ async def test_empty_week_is_created_on_demand(app: FastAPI) -> None:
         resp = await admin.get("/v1/mealplan", params={"week_start": _WEEK})
         assert resp.status_code == 200, resp.text
         assert resp.json() == {"week_start": _WEEK, "slots": [], "absent_days": []}
+
+
+async def test_concurrent_first_reads_of_a_week_create_one_plan(
+    app: FastAPI, pg: PgDatabase
+) -> None:
+    """Several devices opening a fresh week at once all create its plan on demand. The losers of
+    that race used to hit ``uq_meal_plans_household_week`` and answered 500."""
+    # raise_app_exceptions=False: a 500 shows up as a status here, not as a raised exception.
+    transport = ASGITransport(app=app, raise_app_exceptions=False)
+    async with AsyncClient(transport=transport, base_url="http://test") as admin:
+        user_id = await _admin_household(admin)
+        responses = await asyncio.gather(
+            *(admin.get("/v1/mealplan", params={"week_start": _WEEK}) for _ in range(5))
+        )
+    assert [r.status_code for r in responses] == [200] * 5, [r.text for r in responses]
+    conn = await asyncpg.connect(
+        host=pg.get_container_host_ip(),
+        port=int(pg.get_exposed_port(5432)),
+        user=pg.username,
+        password=pg.password,
+        database=pg.dbname,
+    )
+    try:
+        plans = await conn.fetchval(
+            "SELECT count(*) FROM meal_plans p JOIN memberships m USING (household_id) "
+            "WHERE m.user_id = $1 AND p.week_start = $2;",
+            uuid.UUID(user_id),
+            date.fromisoformat(_WEEK),
+        )
+    finally:
+        await conn.close()
+    assert plans == 1
 
 
 async def test_set_recipe_slot_resolves_title(app: FastAPI) -> None:

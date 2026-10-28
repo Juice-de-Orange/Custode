@@ -17,6 +17,24 @@ Eintragsschema:
 
 ---
 
+## 2026-10-28 — Gleichzeitiges erstes Öffnen einer neuen Woche: 500 im Wochenplan  (Modul: mealplanner, Schwere: mittel)
+- **Symptom:** Funktionsprüfung nach frischem Clone: drei parallele `GET /v1/mealplan?week_start=…`
+  für eine noch nie geöffnete Woche lieferten `200, 500, 500`; im API-Log
+  `UniqueViolationError … uq_meal_plans_household_week`. Realer Auslöser: zwei Geräte des Haushalts
+  (oder Tab + PWA) öffnen gleichzeitig eine neue Woche.
+- **Ursache:** `_get_or_create_plan` (`modules/mealplanner/service.py`) las erst und legte dann per
+  ORM an. Unter READ COMMITTED sahen sich die Anfragen nicht, alle fanden keinen Plan, alle legten
+  einen an; der partielle Unique-Index ließ nur den ersten durch, die anderen scheiterten am
+  Duplikat.
+- **Fix:** Anlegen per `INSERT … ON CONFLICT (household_id, week_start) WHERE deleted_at IS NULL
+  DO NOTHING`, danach den Plan erneut lesen — der Verlierer bekommt die Zeile des Gewinners.
+- **Regressionstest:** `test_concurrent_first_reads_of_a_week_create_one_plan` in
+  `backend/tests/test_mealplanner_http.py` (fünf parallele GETs gegen Testcontainers-PG, alle 200,
+  genau ein Plan; vorher `[200, 500, 500, 500, 500]`).
+- **Lehre:** „Lesen, sonst anlegen" ist bei einem Unique-Index ein Wettlauf, sobald ein GET
+  schreibt. Das Idiom der Codebasis dafür ist `pg_insert(...).on_conflict_do_nothing` (wie
+  `_claim_op` im Sync und die Lesebestätigung im Messaging).
+
 ## 2026-10-12 — Einkaufsliste offline: Eintrag verschwand, Neustart offline hing bei „Loading …"  (Modul: web/shopping, web/auth, Schwere: hoch)
 - **Symptom:** First-Visitor-Check nach v0.1.0 (frischer Clone, README wörtlich, Playwright mit
   Offline-Emulation): offline hinzugefügte Artikel erschienen nicht, die Outbox blieb leer,

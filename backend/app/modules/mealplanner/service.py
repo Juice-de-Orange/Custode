@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.kernel.events.emit import emit
@@ -41,13 +42,22 @@ _SHOP_NS = uuid.uuid5(uuid.NAMESPACE_URL, "custode:mealplan:shopping-item")
 async def _get_or_create_plan(
     session: AsyncSession, *, household_id: uuid.UUID, week_start: date
 ) -> MealPlan:
-    plan = await session.scalar(
-        select(MealPlan).where(MealPlan.week_start == week_start, MealPlan.deleted_at.is_(None))
+    current = select(MealPlan).where(
+        MealPlan.week_start == week_start, MealPlan.deleted_at.is_(None)
     )
+    plan = await session.scalar(current)
     if plan is None:
-        plan = MealPlan(household_id=household_id, week_start=week_start)
-        session.add(plan)
-        await session.flush()
+        # Two devices opening a fresh week at once both get here; the unique index decides and
+        # the loser reads the winner's row instead of failing on the duplicate.
+        await session.execute(
+            pg_insert(MealPlan)
+            .values(household_id=household_id, week_start=week_start)
+            .on_conflict_do_nothing(
+                index_elements=["household_id", "week_start"],
+                index_where=MealPlan.deleted_at.is_(None),
+            )
+        )
+        plan = (await session.scalars(current)).one()
     return plan
 
 
