@@ -6,6 +6,11 @@ history (June–September 2026, German) is not part of the public repository.
 
 ## [Unreleased]
 
+### Fixed
+
+- Opening a meal-planner week that did not exist yet from several devices at once no longer answers
+  500 on all but one of them: the week is created once and every request gets it.
+
 ### Changed
 
 - Bundle budget of the member app raised from 231 to 235 kB (gzip, eager JS + CSS): v0.1.1 left 1 byte,
